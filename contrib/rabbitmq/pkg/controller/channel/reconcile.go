@@ -86,7 +86,6 @@ func (r *reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 		logging.FromContext(ctx).Desugar().Info("Not reconciling Channel, it is not controlled by this Controller", zap.Any("ref", c.Spec))
 		return reconcile.Result{}, nil
 	}
-	logging.FromContext(ctx).Info("Reconciling Channel")
 
 	// Modify a copy, not the original.
 	c = c.DeepCopy()
@@ -190,16 +189,16 @@ func (r *reconciler) reconcile(ctx context.Context, c *eventingv1alpha1.Channel)
 	//	return true, nil
 	//}
 	//
-	//svc, err := r.createK8sService(ctx, c)
-	//if err != nil {
-	//	return false, err
-	//}
-	//
-	//err = r.createVirtualService(ctx, c, svc)
-	//if err != nil {
-	//	return false, err
-	//}
-	//
+	svc, err := r.createK8sService(ctx, c)
+	if err != nil {
+		return false, err
+	}
+
+	err = r.createVirtualService(ctx, c, svc)
+	if err != nil {
+		return false, err
+	}
+
 	//topic, err := r.createTopic(ctx, plannedPCS, gcpCreds)
 	//if err != nil {
 	//	return false, err
