@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package receiver
+package dispatcher
 
 import (
 	"context"
