@@ -18,10 +18,12 @@ package channel
 
 import (
 	"context"
+	"fmt"
 
-	provisionerController "github.com/knative/eventing/contrib/rabbitmq/pkg/controller/clusterchannelprovisioner"
+	"github.com/knative/eventing/pkg/utils"
+
+	provisionerController "github.com/knative/eventing/contrib/rabbitmq/pkg/clusterchannelprovisioner"
 	eventingv1alpha1 "github.com/knative/eventing/pkg/apis/eventing/v1alpha1"
-	"github.com/knative/eventing/pkg/controller"
 	util "github.com/knative/eventing/pkg/provisioners"
 	"github.com/knative/pkg/logging"
 	"go.uber.org/zap"
@@ -34,13 +36,6 @@ import (
 
 const (
 	finalizerName = controllerAgentName
-)
-
-type persistence int
-
-const (
-	persistStatus persistence = iota
-	noNeedToPersist
 )
 
 // reconciler reconciles RabbitMQ Channels by creating the K8s Service and Istio VirtualService
@@ -314,8 +309,8 @@ func (r *reconciler) createK8sService(ctx context.Context, c *eventingv1alpha1.C
 		logging.FromContext(ctx).Info("Error creating the Channel's K8s Service", zap.Error(err))
 		return nil, err
 	}
-
-	c.Status.SetAddress(controller.ServiceHostName(svc.Name, svc.Namespace))
+	serviceHostName := fmt.Sprintf("%s.%s.svc.%s", svc.Name, svc.Namespace, utils.GetClusterDomainName())
+	c.Status.SetAddress(serviceHostName)
 	return svc, nil
 }
 

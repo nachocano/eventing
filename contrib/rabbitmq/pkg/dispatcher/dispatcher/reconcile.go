@@ -20,7 +20,7 @@ import (
 	"context"
 	"sync"
 
-	provisionerController "github.com/knative/eventing/contrib/rabbitmq/pkg/controller/clusterchannelprovisioner"
+	provisionerController "github.com/knative/eventing/contrib/rabbitmq/pkg/clusterchannelprovisioner"
 
 	eventingv1alpha1 "github.com/knative/eventing/pkg/apis/eventing/v1alpha1"
 	"github.com/knative/eventing/pkg/provisioners"

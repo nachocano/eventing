@@ -22,8 +22,8 @@ import (
 
 	"github.com/knative/eventing/pkg/provisioners"
 
-	"github.com/knative/eventing/contrib/rabbitmq/pkg/controller/channel"
-	provisionerController "github.com/knative/eventing/contrib/rabbitmq/pkg/controller/clusterchannelprovisioner"
+	"github.com/knative/eventing/contrib/rabbitmq/pkg/channel"
+	provisionerController "github.com/knative/eventing/contrib/rabbitmq/pkg/clusterchannelprovisioner"
 	eventingv1alpha1 "github.com/knative/eventing/pkg/apis/eventing/v1alpha1"
 	istiov1alpha3 "github.com/knative/pkg/apis/istio/v1alpha3"
 	"github.com/knative/pkg/configmap"
@@ -85,10 +85,10 @@ func main() {
 func getProvisionerConfig() (*provisionerController.RabbitMqProvisionerConfig, error) {
 	configMap, err := configmap.Load("/etc/config-provisioner")
 	if err != nil {
-		return nil, fmt.Errorf("Error loading provisioner configuration: %s", err)
+		return nil, fmt.Errorf("error loading provisioner configuration: %s", err)
 	}
 	if len(configMap) == 0 {
-		return nil, fmt.Errorf("Missing provisioner configuration")
+		return nil, fmt.Errorf("missing provisioner configuration")
 	}
 	config := &provisionerController.RabbitMqProvisionerConfig{}
 
@@ -96,5 +96,5 @@ func getProvisionerConfig() (*provisionerController.RabbitMqProvisionerConfig, e
 		config.Url = url
 		return config, nil
 	}
-	return nil, fmt.Errorf("Missing key %s in provisioner configuration", UrlConfigMapKey)
+	return nil, fmt.Errorf("missing key %s in provisioner configuration", UrlConfigMapKey)
 }

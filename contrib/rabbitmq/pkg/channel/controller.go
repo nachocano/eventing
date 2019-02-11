@@ -17,7 +17,7 @@ limitations under the License.
 package channel
 
 import (
-	provisionerController "github.com/knative/eventing/contrib/rabbitmq/pkg/controller/clusterchannelprovisioner"
+	provisionerController "github.com/knative/eventing/contrib/rabbitmq/pkg/clusterchannelprovisioner"
 	eventingv1alpha1 "github.com/knative/eventing/pkg/apis/eventing/v1alpha1"
 	istiov1alpha3 "github.com/knative/pkg/apis/istio/v1alpha3"
 	"go.uber.org/zap"

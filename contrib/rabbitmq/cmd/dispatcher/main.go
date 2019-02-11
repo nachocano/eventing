@@ -19,7 +19,7 @@ package main
 import (
 	"flag"
 
-	"github.com/knative/eventing/contrib/rabbitmq/pkg/controller/clusterchannelprovisioner"
+	"github.com/knative/eventing/contrib/rabbitmq/pkg/clusterchannelprovisioner"
 	"github.com/knative/eventing/contrib/rabbitmq/pkg/dispatcher/dispatcher"
 	"github.com/knative/eventing/contrib/rabbitmq/pkg/dispatcher/receiver"
 	eventingv1alpha1 "github.com/knative/eventing/pkg/apis/eventing/v1alpha1"
