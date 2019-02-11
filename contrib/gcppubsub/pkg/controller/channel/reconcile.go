@@ -20,12 +20,12 @@ import (
 	"context"
 	"fmt"
 
-	eventingv1alpha1 "github.com/knative/eventing/pkg/apis/eventing/v1alpha1"
-	"github.com/knative/eventing/pkg/controller"
-	util "github.com/knative/eventing/pkg/provisioners"
 	ccpcontroller "github.com/knative/eventing/contrib/gcppubsub/pkg/controller/clusterchannelprovisioner"
 	pubsubutil "github.com/knative/eventing/contrib/gcppubsub/pkg/util"
 	"github.com/knative/eventing/contrib/gcppubsub/pkg/util/logging"
+	eventingv1alpha1 "github.com/knative/eventing/pkg/apis/eventing/v1alpha1"
+	"github.com/knative/eventing/pkg/reconciler/names"
+	util "github.com/knative/eventing/pkg/provisioners"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2/google"
 	v1 "k8s.io/api/core/v1"
@@ -333,7 +333,7 @@ func (r *reconciler) createK8sService(ctx context.Context, c *eventingv1alpha1.C
 		return nil, err
 	}
 
-	c.Status.SetAddress(controller.ServiceHostName(svc.Name, svc.Namespace))
+	c.Status.SetAddress(names.ServiceHostName(svc.Name, svc.Namespace))
 	return svc, nil
 }
 
