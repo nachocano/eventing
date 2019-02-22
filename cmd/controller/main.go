@@ -21,9 +21,13 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
+	"github.com/knative/eventing/pkg/reconciler/v1alpha1/namespace"
+	"github.com/knative/eventing/pkg/reconciler/v1alpha1/broker"
 	"github.com/knative/eventing/pkg/reconciler/v1alpha1/subscription"
+	"github.com/knative/eventing/pkg/reconciler/v1alpha1/trigger"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -110,7 +114,7 @@ func main() {
 		eventingv1alpha1.AddToScheme,
 	}
 	for _, schemeFunc := range schemeFuncs {
-		if err := schemeFunc(mgr.GetScheme()); err != nil {
+		if err = schemeFunc(mgr.GetScheme()); err != nil {
 			logger.Fatalf("Error adding type to manager's scheme: %v", err)
 		}
 	}
@@ -119,6 +123,9 @@ func main() {
 	// manager run it.
 	providers := []ProvideFunc{
 		subscription.ProvideController,
+		broker.ProvideController(logger.Desugar(), getRequiredEnv("INGRESS_IMAGE"), getRequiredEnv("INGRESS_SERVICE_ACCOUNT"), getRequiredEnv("FILTER_IMAGE"), getRequiredEnv("FILTER_SERVICE_ACCOUNT")),
+		trigger.ProvideController(logger.Desugar()),
+		namespace.ProvideController(logger.Desugar()),
 	}
 	for _, provider := range providers {
 		if _, err := provider(mgr); err != nil {
@@ -187,4 +194,12 @@ func getLoggingConfigOrDie() map[string]string {
 		}
 		return cm
 	}
+}
+
+func getRequiredEnv(envKey string) string {
+	val, defined := os.LookupEnv(envKey)
+	if !defined {
+		log.Fatalf("required environment variable not defined '%s'", envKey)
+	}
+	return val
 }
