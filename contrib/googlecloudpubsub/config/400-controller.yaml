@@ -32,8 +32,8 @@ spec:
         - name: controller
           image: github.com/knative/eventing/contrib/google_cloud_pubsub/cmd/controller
           env:
-            - name: DEFAULT_GCP_PROJECT
-              value: REPLACE_WITH_GCP_PROJECT
+            - name: DEFAULT_GOOGLE_CLOUD_PROJECT
+              value: REPLACE_WITH_GOOGLE_CLOUD_PROJECT
             - name: DEFAULT_SECRET_NAMESPACE
               value: knative-eventing
             - name: DEFAULT_SECRET_NAME

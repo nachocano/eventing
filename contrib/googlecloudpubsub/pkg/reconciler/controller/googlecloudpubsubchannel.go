@@ -18,25 +18,21 @@ package controller
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/knative/eventing/contrib/googlecloudpubsub/pkg/apis/messaging/v1alpha1"
+	"github.com/knative/eventing/contrib/googlecloudpubsub/pkg/client/clientset/versioned"
 	messaginginformers "github.com/knative/eventing/contrib/googlecloudpubsub/pkg/client/informers/externalversions/messaging/v1alpha1"
 	listers "github.com/knative/eventing/contrib/googlecloudpubsub/pkg/client/listers/messaging/v1alpha1"
 	pubsubutil "github.com/knative/eventing/contrib/googlecloudpubsub/pkg/util"
 	"github.com/knative/eventing/pkg/logging"
 	"github.com/knative/eventing/pkg/reconciler"
-	"github.com/knative/eventing/pkg/reconciler/inmemorychannel/resources"
-	"github.com/knative/eventing/pkg/utils"
 	"github.com/knative/pkg/controller"
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appsv1informers "k8s.io/client-go/informers/apps/v1"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	appsv1listers "k8s.io/client-go/listers/apps/v1"
@@ -61,6 +57,7 @@ const (
 
 	// Name of the corev1.Events emitted from the reconciliation process
 	channelReconciled         = "ChannelReconciled"
+	channelReconcileFailed    = "ChannelReconcileFailed"
 	channelUpdateStatusFailed = "ChannelUpdateStatusFailed"
 	channelReadStatusFailed   = "ChannelReadStatusFailed"
 	gcpCredentialsReadFailed  = "GcpCredentialsReadFailed"
@@ -98,6 +95,7 @@ type Reconciler struct {
 	defaultSecret    corev1.ObjectReference
 	defaultSecretKey string
 
+	eventingClientSet                *versioned.Clientset
 	googlecloudpubsubchannelLister   listers.GoogleCloudPubSubChannelLister
 	googlecloudpubsubchannelInformer cache.SharedIndexInformer
 	deploymentLister                 appsv1listers.DeploymentLister
@@ -128,6 +126,7 @@ var _ cache.ResourceEventHandler = (*Reconciler)(nil)
 func NewController(
 	opt reconciler.Options,
 	args ReconcilerArgs,
+	eventingClientSet *versioned.Clientset,
 	dispatcherNamespace string,
 	dispatcherDeploymentName string,
 	dispatcherServiceName string,
@@ -145,6 +144,7 @@ func NewController(
 		defaultGoogleCloudProject:        args.DefaultGoogleCloudProject,
 		defaultSecret:                    args.DefaultSecret,
 		defaultSecretKey:                 args.DefaultSecretKey,
+		eventingClientSet:                eventingClientSet,
 		googlecloudpubsubchannelLister:   googlecloudpubsubchannelInformer.Lister(),
 		googlecloudpubsubchannelInformer: googlecloudpubsubchannelInformer.Informer(),
 		deploymentLister:                 deploymentInformer.Lister(),
@@ -217,16 +217,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, key string) error {
 	// whether the reconcile error out.
 	reconcileErr := r.reconcile(ctx, channel)
 	if reconcileErr != nil {
-		logging.FromContext(ctx).Error("Error reconciling InMemoryChannel", zap.Error(reconcileErr))
-		r.Recorder.Eventf(channel, corev1.EventTypeWarning, reconcileFailed, "InMemoryChannel reconciliation failed: %v", reconcileErr)
+		logging.FromContext(ctx).Error("Error reconciling GoogleCloudPubSubChannel", zap.Error(reconcileErr))
+		r.Recorder.Eventf(channel, corev1.EventTypeWarning, channelReconcileFailed, "GoogleCloudPubSubChannel reconciliation failed: %v", reconcileErr)
 	} else {
-		logging.FromContext(ctx).Debug("InMemoryChannel reconciled")
-		r.Recorder.Event(channel, corev1.EventTypeNormal, reconciled, "InMemoryChannel reconciled")
+		logging.FromContext(ctx).Debug("GoogleCloudPubSubChannel reconciled")
+		r.Recorder.Event(channel, corev1.EventTypeNormal, channelReconciled, "GoogleCloudPubSubChannel reconciled")
 	}
 
 	if _, updateStatusErr := r.updateStatus(ctx, channel); updateStatusErr != nil {
-		logging.FromContext(ctx).Error("Failed to update InMemoryChannel status", zap.Error(updateStatusErr))
-		r.Recorder.Eventf(channel, corev1.EventTypeWarning, updateStatusFailed, "Failed to update InMemoryChannel's status: %v", err)
+		logging.FromContext(ctx).Error("Failed to update GoogleCloudPubSubChannel status", zap.Error(updateStatusErr))
+		r.Recorder.Eventf(channel, corev1.EventTypeWarning, channelUpdateStatusFailed, "Failed to update GoogleCloudPubSubChannel's status: %v", updateStatusErr)
 		return updateStatusErr
 	}
 
@@ -249,123 +249,123 @@ func (r *Reconciler) reconcile(ctx context.Context, gcpsc *v1alpha1.GoogleCloudP
 	// 4. k8s service representing the channel that will use ExternalName to point to the Dispatcher k8s service
 
 	// Get the Dispatcher Deployment and propagate the status to the Channel
-	d, err := r.deploymentLister.Deployments(r.dispatcherNamespace).Get(r.dispatcherDeploymentName)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			imc.Status.MarkDispatcherFailed("DispatcherDeploymentDoesNotExist", "Dispatcher Deployment does not exist")
-		} else {
-			logging.FromContext(ctx).Error("Unable to get the dispatcher Deployment", zap.Error(err))
-			imc.Status.MarkDispatcherFailed("DispatcherDeploymentGetFailed", "Failed to get dispatcher Deployment")
-		}
-		return err
-	}
-	imc.Status.PropagateDispatcherStatus(&d.Status)
-
-	// Get the Dispatcher Service and propagate the status to the Channel in case it does not exist.
-	// We don't do anything with the service because it's status contains nothing useful, so just do
-	// an existence check. Then below we check the endpoints targeting it.
-	_, err = r.serviceLister.Services(r.dispatcherNamespace).Get(r.dispatcherServiceName)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			imc.Status.MarkServiceFailed("DispatcherServiceDoesNotExist", "Dispatcher Service does not exist")
-		} else {
-			logging.FromContext(ctx).Error("Unable to get the dispatcher service", zap.Error(err))
-			imc.Status.MarkServiceFailed("DispatcherServiceGetFailed", "Failed to get dispatcher service")
-		}
-		return err
-	}
-
-	imc.Status.MarkServiceTrue()
-
-	// Get the Dispatcher Service Endpoints and propagate the status to the Channel
-	// endpoints has the same name as the service, so not a bug.
-	e, err := r.endpointsLister.Endpoints(r.dispatcherNamespace).Get(r.dispatcherServiceName)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			imc.Status.MarkEndpointsFailed("DispatcherEndpointsDoesNotExist", "Dispatcher Endpoints does not exist")
-		} else {
-			logging.FromContext(ctx).Error("Unable to get the dispatcher endpoints", zap.Error(err))
-			imc.Status.MarkEndpointsFailed("DispatcherEndpointsGetFailed", "Failed to get dispatcher endpoints")
-		}
-		return err
-	}
-
-	if len(e.Subsets) == 0 {
-		logging.FromContext(ctx).Error("No endpoints found for Dispatcher service", zap.Error(err))
-		imc.Status.MarkEndpointsFailed("DispatcherEndpointsNotReady", "There are no endpoints ready for Dispatcher service")
-		return errors.New("there are no endpoints ready for Dispatcher service")
-	}
-
-	imc.Status.MarkEndpointsTrue()
-
-	// Reconcile the k8s service representing the actual Channel. It points to the Dispatcher service via
-	// ExternalName
-	svc, err := r.reconcileChannelService(ctx, imc)
-	if err != nil {
-		imc.Status.MarkChannelServiceFailed("ChannelServiceFailed", fmt.Sprintf("Channel Service failed: %s", err))
-		return err
-	}
-	imc.Status.MarkChannelServiceTrue()
-	imc.Status.SetAddress(fmt.Sprintf("%s.%s.svc.%s", svc.Name, svc.Namespace, utils.GetClusterDomainName()))
+	//d, err := r.deploymentLister.Deployments(r.dispatcherNamespace).Get(r.dispatcherDeploymentName)
+	//if err != nil {
+	//	if apierrs.IsNotFound(err) {
+	//		imc.Status.MarkDispatcherFailed("DispatcherDeploymentDoesNotExist", "Dispatcher Deployment does not exist")
+	//	} else {
+	//		logging.FromContext(ctx).Error("Unable to get the dispatcher Deployment", zap.Error(err))
+	//		imc.Status.MarkDispatcherFailed("DispatcherDeploymentGetFailed", "Failed to get dispatcher Deployment")
+	//	}
+	//	return err
+	//}
+	//imc.Status.PropagateDispatcherStatus(&d.Status)
+	//
+	//// Get the Dispatcher Service and propagate the status to the Channel in case it does not exist.
+	//// We don't do anything with the service because it's status contains nothing useful, so just do
+	//// an existence check. Then below we check the endpoints targeting it.
+	//_, err = r.serviceLister.Services(r.dispatcherNamespace).Get(r.dispatcherServiceName)
+	//if err != nil {
+	//	if apierrs.IsNotFound(err) {
+	//		imc.Status.MarkServiceFailed("DispatcherServiceDoesNotExist", "Dispatcher Service does not exist")
+	//	} else {
+	//		logging.FromContext(ctx).Error("Unable to get the dispatcher service", zap.Error(err))
+	//		imc.Status.MarkServiceFailed("DispatcherServiceGetFailed", "Failed to get dispatcher service")
+	//	}
+	//	return err
+	//}
+	//
+	//imc.Status.MarkServiceTrue()
+	//
+	//// Get the Dispatcher Service Endpoints and propagate the status to the Channel
+	//// endpoints has the same name as the service, so not a bug.
+	//e, err := r.endpointsLister.Endpoints(r.dispatcherNamespace).Get(r.dispatcherServiceName)
+	//if err != nil {
+	//	if apierrs.IsNotFound(err) {
+	//		imc.Status.MarkEndpointsFailed("DispatcherEndpointsDoesNotExist", "Dispatcher Endpoints does not exist")
+	//	} else {
+	//		logging.FromContext(ctx).Error("Unable to get the dispatcher endpoints", zap.Error(err))
+	//		imc.Status.MarkEndpointsFailed("DispatcherEndpointsGetFailed", "Failed to get dispatcher endpoints")
+	//	}
+	//	return err
+	//}
+	//
+	//if len(e.Subsets) == 0 {
+	//	logging.FromContext(ctx).Error("No endpoints found for Dispatcher service", zap.Error(err))
+	//	imc.Status.MarkEndpointsFailed("DispatcherEndpointsNotReady", "There are no endpoints ready for Dispatcher service")
+	//	return errors.New("there are no endpoints ready for Dispatcher service")
+	//}
+	//
+	//imc.Status.MarkEndpointsTrue()
+	//
+	//// Reconcile the k8s service representing the actual Channel. It points to the Dispatcher service via
+	//// ExternalName
+	//svc, err := r.reconcileChannelService(ctx, imc)
+	//if err != nil {
+	//	imc.Status.MarkChannelServiceFailed("ChannelServiceFailed", fmt.Sprintf("Channel Service failed: %s", err))
+	//	return err
+	//}
+	//imc.Status.MarkChannelServiceTrue()
+	//imc.Status.SetAddress(fmt.Sprintf("%s.%s.svc.%s", svc.Name, svc.Namespace, utils.GetClusterDomainName()))
 
 	// Ok, so now the Dispatcher Deployment & Service have been created, we're golden since the
 	// dispatcher watches the Channel and where it needs to dispatch events to.
 	return nil
 }
 
-func (r *Reconciler) reconcileChannelService(ctx context.Context, imc *v1alpha1.InMemoryChannel) (*corev1.Service, error) {
-	// Get the  Service and propagate the status to the Channel in case it does not exist.
-	// We don't do anything with the service because it's status contains nothing useful, so just do
-	// an existence check. Then below we check the endpoints targeting it.
-	// We may change this name later, so we have to ensure we use proper addressable when resolving these.
-	svc, err := r.serviceLister.Services(imc.Namespace).Get(fmt.Sprintf("%s-kn-channel", imc.Name))
+//func (r *Reconciler) reconcileChannelService(ctx context.Context, imc *v1alpha1.InMemoryChannel) (*corev1.Service, error) {
+//	// Get the  Service and propagate the status to the Channel in case it does not exist.
+//	// We don't do anything with the service because it's status contains nothing useful, so just do
+//	// an existence check. Then below we check the endpoints targeting it.
+//	// We may change this name later, so we have to ensure we use proper addressable when resolving these.
+//	svc, err := r.serviceLister.Services(imc.Namespace).Get(fmt.Sprintf("%s-kn-channel", imc.Name))
+//	if err != nil {
+//		if apierrs.IsNotFound(err) {
+//			svc, err = resources.NewK8sService(imc, resources.ExternalService(r.dispatcherNamespace, r.dispatcherServiceName))
+//			if err != nil {
+//				logging.FromContext(ctx).Error("failed to create the channel service object", zap.Error(err))
+//				return nil, err
+//			}
+//			svc, err = r.KubeClientSet.CoreV1().Services(imc.Namespace).Create(svc)
+//			if err != nil {
+//				logging.FromContext(ctx).Error("failed to create the channel service", zap.Error(err))
+//				return nil, err
+//			}
+//			return svc, nil
+//		} else {
+//			logging.FromContext(ctx).Error("Unable to get the channel service", zap.Error(err))
+//		}
+//		return nil, err
+//	}
+//
+//	// Check to make sure that our IMC owns this service and if not, complain.
+//	if !metav1.IsControlledBy(svc, imc) {
+//		return nil, fmt.Errorf("inmemorychannel: %s/%s does not own Service: %q", imc.Namespace, imc.Name, svc.Name)
+//	}
+//	return svc, nil
+//}
+
+func (r *Reconciler) updateStatus(ctx context.Context, desired *v1alpha1.GoogleCloudPubSubChannel) (*v1alpha1.GoogleCloudPubSubChannel, error) {
+	gcpsc, err := r.googlecloudpubsubchannelLister.GoogleCloudPubSubChannels(desired.Namespace).Get(desired.Name)
 	if err != nil {
-		if apierrs.IsNotFound(err) {
-			svc, err = resources.NewK8sService(imc, resources.ExternalService(r.dispatcherNamespace, r.dispatcherServiceName))
-			if err != nil {
-				logging.FromContext(ctx).Error("failed to create the channel service object", zap.Error(err))
-				return nil, err
-			}
-			svc, err = r.KubeClientSet.CoreV1().Services(imc.Namespace).Create(svc)
-			if err != nil {
-				logging.FromContext(ctx).Error("failed to create the channel service", zap.Error(err))
-				return nil, err
-			}
-			return svc, nil
-		} else {
-			logging.FromContext(ctx).Error("Unable to get the channel service", zap.Error(err))
-		}
 		return nil, err
 	}
 
-	// Check to make sure that our IMC owns this service and if not, complain.
-	if !metav1.IsControlledBy(svc, imc) {
-		return nil, fmt.Errorf("inmemorychannel: %s/%s does not own Service: %q", imc.Namespace, imc.Name, svc.Name)
-	}
-	return svc, nil
-}
-
-func (r *Reconciler) updateStatus(ctx context.Context, desired *v1alpha1.InMemoryChannel) (*v1alpha1.InMemoryChannel, error) {
-	imc, err := r.inmemorychannelLister.InMemoryChannels(desired.Namespace).Get(desired.Name)
-	if err != nil {
-		return nil, err
+	if reflect.DeepEqual(gcpsc.Status, desired.Status) {
+		return gcpsc, nil
 	}
 
-	if reflect.DeepEqual(imc.Status, desired.Status) {
-		return imc, nil
-	}
-
-	becomesReady := desired.Status.IsReady() && !imc.Status.IsReady()
+	becomesReady := desired.Status.IsReady() && !gcpsc.Status.IsReady()
 
 	// Don't modify the informers copy.
-	existing := imc.DeepCopy()
+	existing := gcpsc.DeepCopy()
 	existing.Status = desired.Status
 
-	new, err := r.EventingClientSet.MessagingV1alpha1().InMemoryChannels(desired.Namespace).UpdateStatus(existing)
+	new, err := r.eventingClientSet.MessagingV1alpha1().GoogleCloudPubSubChannels(desired.Namespace).UpdateStatus(existing)
 	if err == nil && becomesReady {
 		duration := time.Since(new.ObjectMeta.CreationTimestamp.Time)
-		r.Logger.Infof("Subscription %q became ready after %v", imc.Name, duration)
-		//r.StatsReporter.ReportServiceReady(trigger.Namespace, imc.Name, duration) // TODO: stats
+		r.Logger.Infof("GoogleCloudPubSubChannel %q became ready after %v", gcpsc.Name, duration)
+		// TODO: stats
 	}
 
 	return new, err
