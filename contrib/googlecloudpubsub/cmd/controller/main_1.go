@@ -89,6 +89,7 @@ func main() {
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(opt.KubeClientSet, opt.ResyncPeriod)
 	eventingInformerFactory := informers.NewSharedInformerFactory(eventingClientSet, opt.ResyncPeriod)
+	// eventingInformerFactory := informers.NewSharedInformerFactory(opt.EventingClientSet, opt.ResyncPeriod)
 
 	// Messaging
 	pubSubChannelInformer := eventingInformerFactory.Messaging().V1alpha1().GoogleCloudPubSubChannels()
