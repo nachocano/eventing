@@ -30,7 +30,7 @@ spec:
       serviceAccountName: google-cloud-pubsub-dispatcher
       containers:
         - name: dispatcher
-          image: github.com/knative/eventing/contrib/google-cloud-pubsub/cmd/dispatcher
+          image: github.com/knative/eventing/contrib/googlecloudpubsub/cmd/dispatcher
           env:
             - name: DEFAULT_GOOGLE_CLOUD_PROJECT
               value: REPLACE_WITH_GOOGLE_CLOUD_PROJECT

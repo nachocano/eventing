@@ -30,7 +30,7 @@ spec:
       serviceAccountName: google-cloud-pubsub-controller
       containers:
         - name: controller
-          image: github.com/knative/eventing/contrib/google_cloud_pubsub/cmd/controller
+          image: github.com/knative/eventing/contrib/googlecloudpubsub/cmd/controller
           env:
             - name: DEFAULT_GOOGLE_CLOUD_PROJECT
               value: REPLACE_WITH_GOOGLE_CLOUD_PROJECT
