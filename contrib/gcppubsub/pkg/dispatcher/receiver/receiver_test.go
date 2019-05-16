@@ -25,9 +25,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/knative/eventing/contrib/gcppubsub/pkg/util"
-	"github.com/knative/eventing/contrib/gcppubsub/pkg/util/fakepubsub"
-	"github.com/knative/eventing/contrib/gcppubsub/pkg/util/testcreds"
+	"github.com/knative/eventing/contrib/googlecloudpubsub/pkg/util"
+	"github.com/knative/eventing/contrib/googlecloudpubsub/pkg/util/fakepubsub"
+	"github.com/knative/eventing/contrib/googlecloudpubsub/pkg/util/testcreds"
 	eventingv1alpha1 "github.com/knative/eventing/pkg/apis/eventing/v1alpha1"
 	"github.com/knative/eventing/pkg/provisioners"
 	controllertesting "github.com/knative/eventing/pkg/reconciler/testing"

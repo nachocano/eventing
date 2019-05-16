@@ -17,7 +17,7 @@ limitations under the License.
 package channel
 
 import (
-	pubsubutil "github.com/knative/eventing/contrib/gcppubsub/pkg/util"
+	pubsubutil "github.com/knative/eventing/contrib/googlecloudpubsub/pkg/util"
 	eventingv1alpha1 "github.com/knative/eventing/pkg/apis/eventing/v1alpha1"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"

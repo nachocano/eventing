@@ -26,6 +26,7 @@ import (
 	"github.com/knative/eventing/contrib/googlecloudpubsub/pkg/apis/messaging/v1alpha1"
 	messaginginformers "github.com/knative/eventing/contrib/googlecloudpubsub/pkg/client/informers/externalversions/messaging/v1alpha1"
 	listers "github.com/knative/eventing/contrib/googlecloudpubsub/pkg/client/listers/messaging/v1alpha1"
+	pubsubutil "github.com/knative/eventing/contrib/googlecloudpubsub/pkg/util"
 	"github.com/knative/eventing/pkg/logging"
 	"github.com/knative/eventing/pkg/reconciler"
 	"github.com/knative/eventing/pkg/reconciler/inmemorychannel/resources"
@@ -43,6 +44,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+type persistence int
+
 const (
 	// ReconcilerName is the name of the reconciler
 	ReconcilerName = "GoogleCloudPubSubChannels"
@@ -53,12 +56,26 @@ const (
 
 	finalizerName = controllerAgentName
 
-	// Name of the corev1.Events emitted from the reconciliation process.
-	reconciled         = "Reconciled"
-	reconcileFailed    = "ReconcileFailed"
-	updateStatusFailed = "UpdateStatusFailed"
+	persistStatus persistence = iota
+	noNeedToPersist
+
+	// Name of the corev1.Events emitted from the reconciliation process
+	channelReconciled         = "ChannelReconciled"
+	channelUpdateStatusFailed = "ChannelUpdateStatusFailed"
+	channelReadStatusFailed   = "ChannelReadStatusFailed"
+	gcpCredentialsReadFailed  = "GcpCredentialsReadFailed"
+	gcpResourcesPlanFailed    = "GcpResourcesPlanFailed"
+	gcpResourcesPersistFailed = "GcpResourcesPersistFailed"
+	k8sServiceCreateFailed    = "K8sServiceCreateFailed"
+	topicCreateFailed         = "TopicCreateFailed"
+	topicDeleteFailed         = "TopicDeleteFailed"
+	subscriptionSyncFailed    = "SubscriptionSyncFailed"
+	subscriptionDeleteFailed  = "SubscriptionDeleteFailed"
 )
 
+// Reconciler reconciles GoogleCloudPubSub Channels by creating the K8s Service (ExternalName)
+// allowing other processes to send data to them. It also creates the Google Cloud PubSub Topics (one per
+// Channel) and Google Cloud PubSub Subscriptions (one per Subscriber).
 type Reconciler struct {
 	*reconciler.Base
 
@@ -66,9 +83,20 @@ type Reconciler struct {
 	dispatcherDeploymentName string
 	dispatcherServiceName    string
 
+	pubSubClientCreator pubsubutil.PubSubClientCreator
+
+	// Note that for all the default* parameters below, these must be kept in lock-step with the
+	// GCP PubSub Dispatcher's reconciler.
+	// Eventually, individual Channels should be allowed to specify different projects and secrets,
+	// but for now all Channels use the same project and secret.
+
+	// defaultGcpProject is the GCP project ID where PubSub Topics and Subscriptions are created.
 	defaultGoogleCloudProject string
-	defaultSecret             corev1.ObjectReference
-	defaultSecretKey          string
+	// defaultSecret and defaultSecretKey are the K8s Secret and key in that secret that contain a
+	// JSON format GCP service account token, see
+	// https://cloud.google.com/iam/docs/creating-managing-service-account-keys#iam-service-account-keys-create-gcloud
+	defaultSecret    corev1.ObjectReference
+	defaultSecretKey string
 
 	googlecloudpubsubchannelLister   listers.GoogleCloudPubSubChannelLister
 	googlecloudpubsubchannelInformer cache.SharedIndexInformer

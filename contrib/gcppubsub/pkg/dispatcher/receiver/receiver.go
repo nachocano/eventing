@@ -26,7 +26,7 @@ import (
 	"cloud.google.com/go/pubsub"
 	"github.com/knative/eventing/contrib/gcppubsub/pkg/controller/channel"
 	"github.com/knative/eventing/contrib/gcppubsub/pkg/dispatcher/receiver/cache"
-	"github.com/knative/eventing/contrib/gcppubsub/pkg/util"
+	"github.com/knative/eventing/contrib/googlecloudpubsub/pkg/util"
 	eventingv1alpha1 "github.com/knative/eventing/pkg/apis/eventing/v1alpha1"
 	"github.com/knative/eventing/pkg/channelwatcher"
 	"github.com/knative/eventing/pkg/logging"

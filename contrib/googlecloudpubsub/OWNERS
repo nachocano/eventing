@@ -1,0 +1,9 @@
+approvers:
+  - googlecloud-pubsub-approvers
+
+reviewers:
+  - googlecloud-pubsub-reviewers
+
+labels:
+  - area/GoogleCloudPubSub
+

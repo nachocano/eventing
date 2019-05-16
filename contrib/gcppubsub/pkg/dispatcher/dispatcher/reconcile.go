@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/knative/eventing/contrib/gcppubsub/pkg/controller/channel"
-	pubsubutil "github.com/knative/eventing/contrib/gcppubsub/pkg/util"
+	pubsubutil "github.com/knative/eventing/contrib/googlecloudpubsub/pkg/util"
 	eventingv1alpha1 "github.com/knative/eventing/pkg/apis/eventing/v1alpha1"
 	"github.com/knative/eventing/pkg/logging"
 	"github.com/knative/eventing/pkg/provisioners"

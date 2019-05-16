@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	ccpcontroller "github.com/knative/eventing/contrib/gcppubsub/pkg/controller/clusterchannelprovisioner"
-	pubsubutil "github.com/knative/eventing/contrib/gcppubsub/pkg/util"
+	pubsubutil "github.com/knative/eventing/contrib/googlecloudpubsub/pkg/util"
 	"github.com/knative/eventing/pkg/apis/duck/v1alpha1"
 	eventingv1alpha1 "github.com/knative/eventing/pkg/apis/eventing/v1alpha1"
 	"github.com/knative/eventing/pkg/logging"
