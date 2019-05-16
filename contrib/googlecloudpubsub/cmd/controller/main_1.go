@@ -18,17 +18,18 @@ package main
 
 import (
 	"flag"
+	"github.com/kelseyhightower/envconfig"
+	corev1 "k8s.io/api/core/v1"
 	"log"
-	"os"
-
 	// Uncomment the following line to load the gcp plugin (only required to authenticate against GKE clusters).
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
-	informers "github.com/knative/eventing/pkg/client/informers/externalversions"
+	clientset "github.com/knative/eventing/contrib/googlecloudpubsub/pkg/client/clientset/versioned"
+	informers "github.com/knative/eventing/contrib/googlecloudpubsub/pkg/client/informers/externalversions"
+	"github.com/knative/eventing/contrib/googlecloudpubsub/pkg/reconciler/controller"
 	"github.com/knative/eventing/pkg/logconfig"
 	"github.com/knative/eventing/pkg/logging"
 	"github.com/knative/eventing/pkg/reconciler"
-	"github.com/knative/eventing/pkg/reconciler/inmemorychannel"
 	"github.com/knative/pkg/configmap"
 	kncontroller "github.com/knative/pkg/controller"
 	"github.com/knative/pkg/signals"
@@ -50,6 +51,13 @@ var (
 	kubeconfig             = flag.String("kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
 )
 
+type envConfig struct {
+	DefaultGoogleCloudProject string `envconfig:"DEFAULT_GOOGLE_CLOUD_PROJECT" required:"true"`
+	DefaultSecretNamespace    string `envconfig:"DEFAULT_SECRET_NAMESPACE" required:"true"`
+	DefaultSecretName         string `envconfig:"DEFAULT_SECRET_NAME" required:"true"`
+	DefaultSecretKey          string `envconfig:"DEFAULT_SECRET_KEY" required:"true"`
+}
+
 func main() {
 	flag.Parse()
 	logger, atomicLevel := setupLogger()
@@ -63,6 +71,11 @@ func main() {
 		logger.Fatalw("Error building kubeconfig", zap.Error(err))
 	}
 
+	var env envConfig
+	if err := envconfig.Process("", &env); err != nil {
+		logger.Fatalw("Failed to process env var", zap.Error(err))
+	}
+
 	logger = logger.With(zap.String("controller/impl", "pkg"))
 	logger.Info("Starting the controller")
 
@@ -72,9 +85,10 @@ func main() {
 	cfg.QPS = numControllers * rest.DefaultQPS
 	cfg.Burst = numControllers * rest.DefaultBurst
 	opt := reconciler.NewOptionsOrDie(cfg, logger, stopCh)
+	eventingClientSet := clientset.NewForConfigOrDie(cfg)
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(opt.KubeClientSet, opt.ResyncPeriod)
-	eventingInformerFactory := informers.NewSharedInformerFactory(opt.EventingClientSet, opt.ResyncPeriod)
+	eventingInformerFactory := informers.NewSharedInformerFactory(eventingClientSet, opt.ResyncPeriod)
 
 	// Messaging
 	pubSubChannelInformer := eventingInformerFactory.Messaging().V1alpha1().GoogleCloudPubSubChannels()
@@ -84,12 +98,24 @@ func main() {
 	endpointsInformer := kubeInformerFactory.Core().V1().Endpoints()
 	deploymentInformer := kubeInformerFactory.Apps().V1().Deployments()
 
+	args := controller.ReconcilerArgs{
+		DefaultGoogleCloudProject: env.DefaultGoogleCloudProject,
+		DefaultSecret: corev1.ObjectReference{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Secret",
+			Namespace:  env.DefaultSecretNamespace,
+			Name:       env.DefaultSecretName,
+		},
+		DefaultSecretKey: env.DefaultSecretKey,
+	}
+
 	// Build all of our controllers, with the clients constructed above.
 	// Add new controllers to this array.
 	// You also need to modify numControllers above to match this.
 	controllers := [...]*kncontroller.Impl{
-		inmemorychannel.NewController(
+		controller.NewController(
 			opt,
+			args,
 			systemNS,
 			dispatcherDeploymentName,
 			dispatcherServiceName,
@@ -175,12 +201,4 @@ func getLoggingConfigOrDie() map[string]string {
 		}
 		return cm
 	}
-}
-
-func getRequiredEnv(envKey string) string {
-	val, defined := os.LookupEnv(envKey)
-	if !defined {
-		log.Fatalf("required environment variable not defined '%s'", envKey)
-	}
-	return val
 }
