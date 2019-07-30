@@ -2,6 +2,95 @@
 
 **This will create GCP resources that cost money.**
 
+## Example UX
+
+User creates Service:
+
+```yaml
+apiVersion: serving.knative.dev/v1beta1
+kind: Service
+metadata:
+  name: gcs-message-dumper
+spec:
+  template:
+    spec:
+      containers:
+      - image: gcr.io/knative-releases/github.com/knative/eventing-contrib/cmd/event_display@sha256:1f54e4de33a3e808c3abe132a5c73a8f90a90550815b2d5dfdd1bbd5cde19780
+```
+
+User queries registry:
+
+```sh
+kubectl get eventtypes
+```
+
+```
+NAME                         TYPE
+gcs-object-finalize          com.google.storage.finalize
+```
+
+User gets the object:
+
+```sh
+kubectl get eventtype gcs-object-finalize -oyaml
+```
+
+```yaml
+apiVersion: eventing.knative.dev/v1alpha1
+kind: EventType
+metadata:
+ name: gcs-object-finalize
+spec:
+  type: com.google.storage.finalize
+  importer:
+    apiVersion: sources.aikas.org/v1alpha1
+    kind: GCSSource
+    parameters:
+    - name: gcsCredsSecret
+      description: "Name of a Secret containing a GCP service account key with permission to create a GCP notification. Must be at the `key.json` key in JSON format (see https://cloud.google.com/iam/docs/creating-managing-service-account-keys)."
+    - name: googleCloudProject
+      description: "Google Cloud Project ID to create the scheduler job in."
+    - name: bucket
+      description: "GCS bucket to subscribe to. For example my-test-bucket"
+```
+
+User creates Trigger:
+
+```yaml
+apiVersion: eventing.knative.dev/v1alpha1
+kind: Trigger
+metadata:
+  name: dump-gcs-finalize
+spec:
+  importers:
+    - eventTypeName: gcs-object-finalize
+      arguments: # map[string]string
+        gcsCredsSecret: google-cloud-key
+        googleCloudProject: my-project
+        bucket: my-bucket
+ subscriber:
+   apiVersion: serving.knative.dev/v1beta1
+   kind: Service
+   name: gcs-message-dumper
+```
+
+User sees this Trigger status:
+
+```yaml
+status:
+ conditions:
+ - type: Ready
+   status: "True"
+ - type: ImporterReady
+   status: "True"
+ importers:
+   - apiVersion: sources.aikas.org/v1alpha1
+     kind: GCSSource
+     name: gcs-object-finalize-u1a4
+```
+
+Events are flowing.
+
 ## Prereqs
 
 1. kubectl, gcloud, ko, gsutil in path.
@@ -157,3 +246,4 @@ kubectl apply -f t2.yaml
 # Wait up to 1 minute
 
 # See event appear in log alongside GCS event
+```
