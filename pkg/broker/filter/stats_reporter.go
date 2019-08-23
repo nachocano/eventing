@@ -17,11 +17,15 @@
 package filter
 
 import (
+	"context"
+	"fmt"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
 	utils "knative.dev/eventing/pkg/broker"
-	"knative.dev/pkg/metrics/metricskey"
+	"knative.dev/eventing/pkg/metrics/metricskey"
+	"knative.dev/pkg/metrics"
+	"strconv"
 	"time"
 )
 
@@ -57,29 +61,6 @@ var (
 		"The time spent dispatching an event from a Broker to a Trigger subscriber",
 		stats.UnitMilliseconds,
 	)
-
-	// Tag keys must conform to the restrictions described in
-	// go.opencensus.io/tag/validate.go. Currently those restrictions are:
-	// - length between 1 and 255 inclusive
-	// - characters are printable US-ASCII
-
-	// TagFilterResult is a tag key referring to the observed result of a filter
-	// operation.
-	TagFilterResult = utils.MustNewTagKey("filter_result")
-
-	// TagBroker is a tag key referring to the Broker name serviced by this
-	// filter process.
-	TagBroker = utils.MustNewTagKey("broker")
-
-	// TagTrigger is a tag key referring to the Trigger name serviced by this
-	// filter process.
-	TagTrigger = utils.MustNewTagKey("trigger")
-
-	// TagTrigger is a tag key referring to the Trigger type attribute filter.
-	TagTriggerType = utils.MustNewTagKey("trigger_type")
-
-	// TagEventType is a tag key referring to the CloudEvent type.
-	TagEventType = utils.MustNewTagKey("event_type")
 )
 
 // StatsReporter defines the interface for sending filter metrics.
@@ -96,72 +77,84 @@ type Reporter struct {
 	namespaceTagKey      tag.Key
 	triggerTagKey        tag.Key
 	brokerTagKey         tag.Key
+	triggerTypeKey       tag.Key
+	triggerSourceKey     tag.Key
 	responseCodeKey      tag.Key
 	responseCodeClassKey tag.Key
 	filterResultKey      tag.Key
-	triggerTypeKey       tag.Key
-	eventTypeKey         tag.Key
 }
 
-// NewStatsReporter creates a reporter that collects and reports activator metrics
+// NewStatsReporter creates a reporter that collects and reports filter metrics.
 func NewStatsReporter() (*Reporter, error) {
 	var r = &Reporter{}
 
 	// Create the tag keys that will be used to add tags to our measurements.
-	nsTag, err := tag.NewKey(metricskey.LabelNamespaceName)
+	nsTag, err := tag.NewKey(metricskey.NamespaceName)
 	if err != nil {
 		return nil, err
 	}
 	r.namespaceTagKey = nsTag
-	serviceTag, err := tag.NewKey(metricskey.LabelServiceName)
+	triggerTag, err := tag.NewKey(metricskey.TriggerName)
 	if err != nil {
 		return nil, err
 	}
-	r.serviceTagKey = serviceTag
-	configTag, err := tag.NewKey(metricskey.LabelConfigurationName)
+	r.triggerTagKey = triggerTag
+	brokerTag, err := tag.NewKey(metricskey.BrokerName)
 	if err != nil {
 		return nil, err
 	}
-	r.configTagKey = configTag
-	revTag, err := tag.NewKey(metricskey.LabelRevisionName)
+	r.brokerTagKey = brokerTag
+	triggerTypeTag, err := tag.NewKey(metricskey.TriggerType)
 	if err != nil {
 		return nil, err
 	}
-	r.revisionTagKey = revTag
-	responseCodeTag, err := tag.NewKey("response_code")
+	r.triggerTypeKey = triggerTypeTag
+	triggerSourceKey, err := tag.NewKey(metricskey.TriggerSource)
+	if err != nil {
+		return nil, err
+	}
+	r.triggerSourceKey = triggerSourceKey
+	filterResultTag, err := tag.NewKey(metricskey.FilterResult)
+	if err != nil {
+		return nil, err
+	}
+	r.filterResultKey = filterResultTag
+	responseCodeTag, err := tag.NewKey(metricskey.ResponseCode)
 	if err != nil {
 		return nil, err
 	}
 	r.responseCodeKey = responseCodeTag
-	responseCodeClassTag, err := tag.NewKey("response_code_class")
+	responseCodeClassTag, err := tag.NewKey(metricskey.ResponseCodeClass)
 	if err != nil {
 		return nil, err
 	}
 	r.responseCodeClassKey = responseCodeClassTag
-	numTriesTag, err := tag.NewKey("num_tries")
-	if err != nil {
-		return nil, err
-	}
-	r.numTriesKey = numTriesTag
+
 	// Create view to see our measurements.
 	err = view.Register(
 		&view.View{
-			Description: "Concurrent requests that are routed to Activator",
-			Measure:     requestConcurrencyM,
-			Aggregation: view.LastValue(),
-			TagKeys:     []tag.Key{r.namespaceTagKey, r.serviceTagKey, r.configTagKey, r.revisionTagKey},
-		},
-		&view.View{
-			Description: "The number of requests that are routed to Activator",
-			Measure:     requestCountM,
+			Description: eventCountM.Description(),
+			Measure:     eventCountM,
 			Aggregation: view.Count(),
-			TagKeys:     []tag.Key{r.namespaceTagKey, r.serviceTagKey, r.configTagKey, r.revisionTagKey, r.responseCodeKey, r.responseCodeClassKey, r.numTriesKey},
+			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTagKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.responseCodeKey, r.responseCodeClassKey},
 		},
 		&view.View{
-			Description: "The response time in millisecond",
-			Measure:     responseTimeInMsecM,
-			Aggregation: defaultLatencyDistribution,
-			TagKeys:     []tag.Key{r.namespaceTagKey, r.serviceTagKey, r.configTagKey, r.revisionTagKey, r.responseCodeClassKey, r.responseCodeKey},
+			Description: dispatchTimeInMsecM.Description(),
+			Measure:     dispatchTimeInMsecM,
+			Aggregation: view.Distribution(utils.Buckets125(1, 100)...), // 1, 2, 5, 10, 20, 50, 100
+			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTagKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.responseCodeKey, r.responseCodeClassKey},
+		},
+		&view.View{
+			Description: filterTimeInMsecM.Description(),
+			Measure:     filterTimeInMsecM,
+			Aggregation: view.Distribution(utils.Buckets125(0.1, 10)...), // 0.1, 0.2, 0.5, 1, 2, 5, 10
+			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTypeKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.filterResultKey},
+		},
+		&view.View{
+			Description: deliveryTimeInMsecM.Description(),
+			Measure:     deliveryTimeInMsecM,
+			Aggregation: view.Distribution(utils.Buckets125(1, 100)...), // 1, 2, 5, 10, 20, 50, 100
+			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTypeKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.responseCodeKey, r.responseCodeClassKey},
 		},
 	)
 	if err != nil {
@@ -172,36 +165,26 @@ func NewStatsReporter() (*Reporter, error) {
 	return r, nil
 }
 
-func init() {
-	// Create views for exporting measurements. This returns an error if a
-	// previously registered view has the same name with a different value.
-	err := view.Register(
-		&view.View{
-			Name:        "trigger_events_total",
-			Measure:     MeasureTriggerEventsTotal,
-			Aggregation: view.Count(),
-			TagKeys:     []tag.Key{TagResult, TagBroker, TagTrigger},
-		},
-		&view.View{
-			Name:        "trigger_dispatch_time",
-			Measure:     MeasureTriggerDispatchTime,
-			Aggregation: view.Distribution(utils.Buckets125(1, 100)...), // 1, 2, 5, 10, 20, 50, 100,
-			TagKeys:     []tag.Key{TagResult, TagBroker, TagTrigger},
-		},
-		&view.View{
-			Name:        "trigger_filter_time",
-			Measure:     MeasureTriggerFilterTime,
-			Aggregation: view.Distribution(utils.Buckets125(0.1, 10)...), // 0.1, 0.2, 0.5, 1, 2, 5, 10
-			TagKeys:     []tag.Key{TagResult, TagFilterResult, TagBroker, TagTrigger},
-		},
-		&view.View{
-			Name:        "broker_to_function_delivery_time",
-			Measure:     MeasureDeliveryTime,
-			Aggregation: view.Distribution(utils.Buckets125(1, 100)...), // 1, 2, 5, 10, 20, 50, 100
-			TagKeys:     []tag.Key{TagResult, TagBroker, TagTrigger},
-		},
-	)
-	if err != nil {
-		panic(err)
+// ReportEventCount captures the event count.
+func (r *Reporter) ReportEventCount(context context.Context, ns, trigger, broker, triggerType, triggerSource string, responseCode int) error {
+	if !r.initialized {
+		return fmt.Errorf("StatsReporter is not initialized yet")
 	}
+
+	// Note that service names can be an empty string, so it needs a special treatment.
+	ctx, err := tag.New(
+		context,
+		tag.Insert(r.namespaceTagKey, ns),
+		tag.Insert(r.triggerTagKey, trigger),
+		tag.Insert(r.brokerTagKey, broker),
+		tag.Insert(r.triggerTypeKey, triggerType),
+		tag.Insert(r.triggerSourceKey, triggerSource),
+		tag.Insert(r.responseCodeKey, strconv.Itoa(responseCode)),
+		tag.Insert(r.responseCodeClassKey, utils.ResponseCodeClass(responseCode)))
+	if err != nil {
+		return err
+	}
+
+	metrics.Record(ctx, eventCountM.M(1))
+	return nil
 }

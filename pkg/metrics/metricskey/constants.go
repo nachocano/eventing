@@ -34,8 +34,11 @@ const (
 	// NamespaceName is the label for the immutable name of the namespace where the resource type exists.
 	NamespaceName = "namespace_name"
 
-	// TriggerName is the label for the name of the trigger.
+	// TriggerName is the label for the name of the Trigger.
 	TriggerName = "trigger_name"
+
+	// BrokerName is the label for the name of the Broker.
+	BrokerName = "broker_name"
 
 	// TriggerType is the label for the type attribute filter of the Trigger.
 	TriggerType = "trigger_type"
@@ -46,6 +49,15 @@ const (
 	// Unknown is the default value if the field is unknown, e.g., the project will be unknown if Knative
 	// is not running on GKE.
 	Unknown = "unknown"
+
+	// ResponseCode is the label for HTTP status codes.
+	ResponseCode = "response_code"
+
+	// ResponseCodeClass is the label for HTTP status code classes. One of "2xx", "3xx", "4xx", or "5xx".
+	ResponseCodeClass = "response_code_class"
+
+	// FilterResult is the label for the Trigger filtering result.
+	FilterResult = "filter_result"
 )
 
 var (

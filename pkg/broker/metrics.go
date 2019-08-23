@@ -16,7 +16,10 @@
 
 package broker
 
-import "go.opencensus.io/tag"
+import (
+	"go.opencensus.io/tag"
+	"strconv"
+)
 
 // MustNewTagKey creates a Tag or panics. This will only fail if the tag key
 // doesn't conform to tag name validations.
@@ -38,4 +41,11 @@ func Buckets125(low, high float64) []float64 {
 		buckets = append(buckets, 2*last, 5*last, 10*last)
 	}
 	return buckets
+}
+
+// ResponseCodeClass converts response code to a string of response code class.
+// e.g. The response code class is "5xx" for response code 503.
+func ResponseCodeClass(responseCode int) string {
+	// Get the hundred digit of the response code and concatenate "xx".
+	return strconv.Itoa(responseCode/100) + "xx"
 }

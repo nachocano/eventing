@@ -213,6 +213,7 @@ func (r *Handler) sendEvent(ctx context.Context, tctx cloudevents.HTTPTransportC
 		now := time.Now()
 		dispatchTimeMS := int64(now.Sub(startTS) / time.Millisecond)
 		stats.Record(ctx, MeasureTriggerDispatchTime.M(dispatchTimeMS))
+		statsReporter.R
 		stats.Record(ctx, MeasureTriggerEventsTotal.M(1))
 		if err := event.ExtensionAs(broker.TimeInFlightMetadataName, &deliveryTime); err != nil {
 			return
