@@ -25,7 +25,6 @@ import (
 	utils "knative.dev/eventing/pkg/broker"
 	"knative.dev/eventing/pkg/metrics/metricskey"
 	"knative.dev/pkg/metrics"
-	"strconv"
 	"time"
 )
 
@@ -54,34 +53,41 @@ var (
 		stats.UnitMilliseconds,
 	)
 
-	// deliveryTimeInMsecM records the time spent between arrival at ingress
+	// deliveryTimeInMsecM records the time spent between arrival at the Broker ingress
 	// and delivery to the Trigger subscriber.
 	deliveryTimeInMsecM = stats.Float64(
 		"event_latencies",
-		"The time spent dispatching an event from a Broker to a Trigger subscriber",
+		"The time spent routing an event from a Broker to a Trigger subscriber",
 		stats.UnitMilliseconds,
 	)
 )
 
+type ReportArgs struct {
+	ns          string
+	trigger     string
+	broker      string
+	eventType   string
+	eventSource string
+}
+
 // StatsReporter defines the interface for sending filter metrics.
 type StatsReporter interface {
-	ReportEventCount(ns, broker, trigger, eventType string, responseCode int) error
-	ReportDispatchTime(ns, broker, trigger, eventType string, responseCode int, d time.Duration) error
-	ReportFilterTime(ns, broker, trigger, eventType string, responseCode int, d time.Duration) error
-	ReportDeliveryTime(ns, broker, trigger, eventType string, responseCode int, d time.Duration) error
+	ReportEventCount(args *ReportArgs, err error) error
+	ReportDispatchTime(args *ReportArgs, err error, d time.Duration) error
+	ReportFilterTime(args *ReportArgs, filterResult string, d time.Duration) error
+	ReportEventDeliveryTime(args *ReportArgs, err error, d time.Duration) error
 }
 
 // Reporter holds cached metric objects to report filter metrics.
 type Reporter struct {
-	initialized          bool
-	namespaceTagKey      tag.Key
-	triggerTagKey        tag.Key
-	brokerTagKey         tag.Key
-	triggerTypeKey       tag.Key
-	triggerSourceKey     tag.Key
-	responseCodeKey      tag.Key
-	responseCodeClassKey tag.Key
-	filterResultKey      tag.Key
+	initialized      bool
+	namespaceTagKey  tag.Key
+	triggerTagKey    tag.Key
+	brokerTagKey     tag.Key
+	triggerTypeKey   tag.Key
+	triggerSourceKey tag.Key
+	resultKey        tag.Key
+	filterResultKey  tag.Key
 }
 
 // NewStatsReporter creates a reporter that collects and reports filter metrics.
@@ -119,16 +125,11 @@ func NewStatsReporter() (*Reporter, error) {
 		return nil, err
 	}
 	r.filterResultKey = filterResultTag
-	responseCodeTag, err := tag.NewKey(metricskey.ResponseCode)
+	resultTag, err := tag.NewKey(metricskey.Result)
 	if err != nil {
 		return nil, err
 	}
-	r.responseCodeKey = responseCodeTag
-	responseCodeClassTag, err := tag.NewKey(metricskey.ResponseCodeClass)
-	if err != nil {
-		return nil, err
-	}
-	r.responseCodeClassKey = responseCodeClassTag
+	r.resultKey = resultTag
 
 	// Create view to see our measurements.
 	err = view.Register(
@@ -136,13 +137,13 @@ func NewStatsReporter() (*Reporter, error) {
 			Description: eventCountM.Description(),
 			Measure:     eventCountM,
 			Aggregation: view.Count(),
-			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTagKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.responseCodeKey, r.responseCodeClassKey},
+			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTagKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.resultKey},
 		},
 		&view.View{
 			Description: dispatchTimeInMsecM.Description(),
 			Measure:     dispatchTimeInMsecM,
 			Aggregation: view.Distribution(utils.Buckets125(1, 100)...), // 1, 2, 5, 10, 20, 50, 100
-			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTagKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.responseCodeKey, r.responseCodeClassKey},
+			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTagKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.resultKey},
 		},
 		&view.View{
 			Description: filterTimeInMsecM.Description(),
@@ -154,7 +155,7 @@ func NewStatsReporter() (*Reporter, error) {
 			Description: deliveryTimeInMsecM.Description(),
 			Measure:     deliveryTimeInMsecM,
 			Aggregation: view.Distribution(utils.Buckets125(1, 100)...), // 1, 2, 5, 10, 20, 50, 100
-			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTypeKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.responseCodeKey, r.responseCodeClassKey},
+			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTypeKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.resultKey},
 		},
 	)
 	if err != nil {
@@ -166,25 +167,104 @@ func NewStatsReporter() (*Reporter, error) {
 }
 
 // ReportEventCount captures the event count.
-func (r *Reporter) ReportEventCount(context context.Context, ns, trigger, broker, triggerType, triggerSource string, responseCode int) error {
+func (r *Reporter) ReportEventCount(args *ReportArgs, err error) error {
 	if !r.initialized {
 		return fmt.Errorf("StatsReporter is not initialized yet")
 	}
 
-	// Note that service names can be an empty string, so it needs a special treatment.
+	// Note that eventType and eventSource can be empty strings, so they need a special treatment.
 	ctx, err := tag.New(
-		context,
-		tag.Insert(r.namespaceTagKey, ns),
-		tag.Insert(r.triggerTagKey, trigger),
-		tag.Insert(r.brokerTagKey, broker),
-		tag.Insert(r.triggerTypeKey, triggerType),
-		tag.Insert(r.triggerSourceKey, triggerSource),
-		tag.Insert(r.responseCodeKey, strconv.Itoa(responseCode)),
-		tag.Insert(r.responseCodeClassKey, utils.ResponseCodeClass(responseCode)))
+		context.Background(),
+		tag.Insert(r.namespaceTagKey, args.ns),
+		tag.Insert(r.triggerTagKey, args.trigger),
+		tag.Insert(r.brokerTagKey, args.broker),
+		tag.Insert(r.triggerTypeKey, args.eventType),
+		tag.Insert(r.triggerSourceKey, args.eventSource),
+		tag.Insert(r.resultKey, utils.Result(err)))
 	if err != nil {
 		return err
 	}
 
 	metrics.Record(ctx, eventCountM.M(1))
 	return nil
+}
+
+// ReportDispatchTime captures dispatch times.
+func (r *Reporter) ReportDispatchTime(args *ReportArgs, err error, d time.Duration) error {
+	if !r.initialized {
+		return fmt.Errorf("StatsReporter is not initialized yet")
+	}
+
+	// Note that eventType and eventSource can be empty strings, so they need a special treatment.
+	ctx, err := tag.New(
+		context.Background(),
+		tag.Insert(r.namespaceTagKey, args.ns),
+		tag.Insert(r.triggerTagKey, args.trigger),
+		tag.Insert(r.brokerTagKey, args.broker),
+		tag.Insert(r.triggerTypeKey, valueOrAny(args.eventType)),
+		tag.Insert(r.triggerSourceKey, valueOrAny(args.eventSource)),
+		tag.Insert(r.resultKey, utils.Result(err)))
+	if err != nil {
+		return err
+	}
+
+	// convert time.Duration in nanoseconds to milliseconds.
+	metrics.Record(ctx, dispatchTimeInMsecM.M(float64(d/time.Millisecond)))
+	return nil
+}
+
+// ReportFilterTime captures filtering times.
+func (r *Reporter) ReportFilterTime(args *ReportArgs, filterResult string, d time.Duration) error {
+	if !r.initialized {
+		return fmt.Errorf("StatsReporter is not initialized yet")
+	}
+
+	// Note that eventType and eventSource can be empty strings, so they need a special treatment.
+	ctx, err := tag.New(
+		context.Background(),
+		tag.Insert(r.namespaceTagKey, args.ns),
+		tag.Insert(r.triggerTagKey, args.trigger),
+		tag.Insert(r.brokerTagKey, args.broker),
+		tag.Insert(r.triggerTypeKey, valueOrAny(args.eventType)),
+		tag.Insert(r.triggerSourceKey, valueOrAny(args.eventSource)),
+		tag.Insert(r.filterResultKey, filterResult))
+	if err != nil {
+		return err
+	}
+
+	// convert time.Duration in nanoseconds to milliseconds.
+	metrics.Record(ctx, filterTimeInMsecM.M(float64(d/time.Millisecond)))
+	return nil
+}
+
+// ReportEventDeliveryTime captures event delivery times.
+func (r *Reporter) ReportEventDeliveryTime(args *ReportArgs, err error, d time.Duration) error {
+	if !r.initialized {
+		return fmt.Errorf("StatsReporter is not initialized yet")
+	}
+
+	// Note that eventType and eventSource can be empty strings, so they need a special treatment.
+	ctx, err := tag.New(
+		context.Background(),
+		tag.Insert(r.namespaceTagKey, args.ns),
+		tag.Insert(r.triggerTagKey, args.trigger),
+		tag.Insert(r.brokerTagKey, args.broker),
+		tag.Insert(r.triggerTypeKey, valueOrAny(args.eventType)),
+		tag.Insert(r.triggerSourceKey, valueOrAny(args.eventSource)),
+		tag.Insert(r.resultKey, utils.Result(err)))
+	if err != nil {
+		return err
+	}
+
+	// convert time.Duration in nanoseconds to milliseconds.
+	metrics.Record(ctx, filterTimeInMsecM.M(float64(d/time.Millisecond)))
+	return nil
+}
+
+// TODO can't we send empty?
+func valueOrAny(v string) string {
+	if v != "" {
+		return v
+	}
+	return metricskey.Any
 }

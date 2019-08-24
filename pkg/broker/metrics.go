@@ -16,21 +16,12 @@
 
 package broker
 
-import (
-	"go.opencensus.io/tag"
-	"strconv"
+const (
+	// EventArrivalTime is used to access the metadata stored on a
+	// CloudEvent to measure the time difference between when an event is
+	// received on a broker and when it is dispatched to the trigger function.
+	EventArrivalTime = "knativearrivaltime"
 )
-
-// MustNewTagKey creates a Tag or panics. This will only fail if the tag key
-// doesn't conform to tag name validations.
-// TODO OC library should provide this
-func MustNewTagKey(k string) tag.Key {
-	tagKey, err := tag.NewKey(k)
-	if err != nil {
-		panic(err)
-	}
-	return tagKey
-}
 
 // Buckets125 generates an array of buckets with approximate powers-of-two
 // buckets that also aligns with powers of 10 on every 3rd step. This can
@@ -43,9 +34,10 @@ func Buckets125(low, high float64) []float64 {
 	return buckets
 }
 
-// ResponseCodeClass converts response code to a string of response code class.
-// e.g. The response code class is "5xx" for response code 503.
-func ResponseCodeClass(responseCode int) string {
-	// Get the hundred digit of the response code and concatenate "xx".
-	return strconv.Itoa(responseCode/100) + "xx"
+// Result converts an error to a result string (either "success" or "error").
+func Result(err error) string {
+	if err != nil {
+		return "error"
+	}
+	return "success"
 }

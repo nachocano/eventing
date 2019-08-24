@@ -47,11 +47,11 @@ var (
 	// - characters are printable US-ASCII
 
 	// TagResult is a tag key referring to the observed result of an operation.
-	TagResult = utils.MustNewTagKey("result")
+	TagResult = mustNewTagKey("result")
 
 	// TagBroker is a tag key referring to the Broker name serviced by this
 	// ingress process.
-	TagBroker = utils.MustNewTagKey("broker")
+	TagBroker = mustNewTagKey("broker")
 )
 
 func init() {
@@ -74,4 +74,15 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// mustNewTagKey creates a Tag or panics. This will only fail if the tag key
+// doesn't conform to tag name validations.
+// TODO OC library should provide this
+func mustNewTagKey(k string) tag.Key {
+	tagKey, err := tag.NewKey(k)
+	if err != nil {
+		panic(err)
+	}
+	return tagKey
 }

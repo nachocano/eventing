@@ -50,14 +50,14 @@ const (
 	// is not running on GKE.
 	Unknown = "unknown"
 
-	// ResponseCode is the label for HTTP status codes.
-	ResponseCode = "response_code"
-
-	// ResponseCodeClass is the label for HTTP status code classes. One of "2xx", "3xx", "4xx", or "5xx".
-	ResponseCodeClass = "response_code_class"
+	// Result is the label for the result of sending an event to a downstream consumer. One of "success", "error".
+	Result = "result"
 
 	// FilterResult is the label for the Trigger filtering result.
 	FilterResult = "filter_result"
+
+	// Any is the default value if the trigger filter attributes are empty.
+	Any = "any"
 )
 
 var (
