@@ -46,15 +46,18 @@ const (
 	// TriggerSource is the label for the source attribute filter of the Trigger.
 	TriggerSource = "trigger_source"
 
+	// EventType is the label for the CloudEvents type context attribute.
+	EventType = "event_type"
+
+	// FilterResult is the label for the Trigger filtering result.
+	FilterResult = "filter_result"
+
 	// Unknown is the default value if the field is unknown, e.g., the project will be unknown if Knative
 	// is not running on GKE.
 	Unknown = "unknown"
 
 	// Result is the label for the result of sending an event to a downstream consumer. One of "success", "error".
 	Result = "result"
-
-	// FilterResult is the label for the Trigger filtering result.
-	FilterResult = "filter_result"
 
 	// Any is the default value if the trigger filter attributes are empty.
 	Any = "any"

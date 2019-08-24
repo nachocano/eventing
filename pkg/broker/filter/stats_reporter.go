@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	// triggerEventCountM is a counter which records the number of events received
+	// eventCountM is a counter which records the number of events received
 	// by a Trigger.
 	eventCountM = stats.Int64(
 		"event_count",
@@ -37,23 +37,23 @@ var (
 		stats.UnitDimensionless,
 	)
 
-	// dispatchTimeInMsecM records the time spent dispatching an event for
-	// a Trigger, in milliseconds.
+	// dispatchTimeInMsecM records the time spent dispatching an event to
+	// a Trigger subscriber, in milliseconds.
 	dispatchTimeInMsecM = stats.Float64(
 		"dispatch_latencies",
-		"The time spent dispatching an event to a Trigger",
+		"The time spent dispatching an event to a Trigger subscriber",
 		stats.UnitMilliseconds,
 	)
 
-	// filterTimeInMsecM records the time spent filtering a message for a
+	// filterTimeInMsecM records the time spent filtering an event for a
 	// Trigger, in milliseconds.
 	filterTimeInMsecM = stats.Float64(
 		"filter_latencies",
-		"The time spent filtering a message for a Trigger",
+		"The time spent filtering an event for a Trigger",
 		stats.UnitMilliseconds,
 	)
 
-	// deliveryTimeInMsecM records the time spent between arrival at the Broker ingress
+	// deliveryTimeInMsecM records the time spent between arrival at the Broker
 	// and delivery to the Trigger subscriber.
 	deliveryTimeInMsecM = stats.Float64(
 		"event_latencies",
