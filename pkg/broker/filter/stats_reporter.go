@@ -136,7 +136,7 @@ func NewStatsReporter() (*Reporter, error) {
 		&view.View{
 			Description: eventCountM.Description(),
 			Measure:     eventCountM,
-			Aggregation: view.Count(),
+			Aggregation: view.Sum(),
 			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTagKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.resultKey},
 		},
 		&view.View{
@@ -178,8 +178,8 @@ func (r *Reporter) ReportEventCount(args *ReportArgs, err error) error {
 		tag.Insert(r.namespaceTagKey, args.ns),
 		tag.Insert(r.triggerTagKey, args.trigger),
 		tag.Insert(r.brokerTagKey, args.broker),
-		tag.Insert(r.triggerTypeKey, args.eventType),
-		tag.Insert(r.triggerSourceKey, args.eventSource),
+		tag.Insert(r.triggerTypeKey, valueOrAny(args.eventType)),
+		tag.Insert(r.triggerSourceKey, valueOrAny(args.eventSource)),
 		tag.Insert(r.resultKey, utils.Result(err)))
 	if err != nil {
 		return err
@@ -257,11 +257,10 @@ func (r *Reporter) ReportEventDeliveryTime(args *ReportArgs, err error, d time.D
 	}
 
 	// convert time.Duration in nanoseconds to milliseconds.
-	metrics.Record(ctx, filterTimeInMsecM.M(float64(d/time.Millisecond)))
+	metrics.Record(ctx, deliveryTimeInMsecM.M(float64(d/time.Millisecond)))
 	return nil
 }
 
-// TODO can't we send empty?
 func valueOrAny(v string) string {
 	if v != "" {
 		return v
