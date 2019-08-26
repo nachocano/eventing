@@ -99,6 +99,7 @@ func NewStatsReporter() (*Reporter, error) {
 		&view.View{
 			Description: eventCountM.Description(),
 			Measure:     eventCountM,
+			// TODO count or sum aggregation?
 			Aggregation: view.Count(),
 			TagKeys:     []tag.Key{r.namespaceTagKey, r.brokerTagKey, r.eventTypeKey, r.resultKey},
 		},
