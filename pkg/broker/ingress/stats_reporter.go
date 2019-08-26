@@ -99,7 +99,7 @@ func NewStatsReporter() (*Reporter, error) {
 		&view.View{
 			Description: eventCountM.Description(),
 			Measure:     eventCountM,
-			Aggregation: view.Count(),
+			Aggregation: view.Sum(),
 			TagKeys:     []tag.Key{r.namespaceTagKey, r.brokerTagKey, r.eventTypeKey, r.resultKey},
 		},
 		&view.View{
