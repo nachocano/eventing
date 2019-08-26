@@ -238,6 +238,7 @@ func (r *Handler) sendEvent(ctx context.Context, tctx cloudevents.HTTPTransportC
 
 	start = time.Now()
 	sendingCTX := broker.SendingContext(ctx, tctx, subscriberURI)
+	// TODO get HTTP status codes and use those.
 	replyEvent, err := r.ceClient.Send(sendingCTX, *event)
 	// Record the dispatch time.
 	r.reporter.ReportDispatchTime(reportArgs, err, time.Since(start))
