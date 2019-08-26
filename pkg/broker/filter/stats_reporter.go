@@ -136,7 +136,7 @@ func NewStatsReporter() (*Reporter, error) {
 		&view.View{
 			Description: eventCountM.Description(),
 			Measure:     eventCountM,
-			Aggregation: view.Sum(),
+			Aggregation: view.Count(),
 			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTagKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.resultKey},
 		},
 		&view.View{

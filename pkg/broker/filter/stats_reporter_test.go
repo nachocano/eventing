@@ -72,7 +72,7 @@ func TestStatsReporter(t *testing.T) {
 	expectSuccess(t, func() error {
 		return r.ReportEventCount(args, nil)
 	})
-	metricstest.CheckSumData(t, "event_count", wantTags1, 2)
+	metricstest.CheckCountData(t, "event_count", wantTags1, 2)
 
 	// test ReportDispatchTime
 	expectSuccess(t, func() error {
@@ -143,7 +143,7 @@ func TestReporterEmptySourceAndType(t *testing.T) {
 	expectSuccess(t, func() error {
 		return r.ReportEventCount(args, nil)
 	})
-	metricstest.CheckSumData(t, "event_count", wantTags, 4)
+	metricstest.CheckCountData(t, "event_count", wantTags, 4)
 }
 
 func expectSuccess(t *testing.T, f func() error) {
