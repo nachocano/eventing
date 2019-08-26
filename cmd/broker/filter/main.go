@@ -83,7 +83,7 @@ func main() {
 
 	// We are running both the receiver (takes messages in from the Broker) and the dispatcher (send
 	// the messages to the triggers' subscribers) in this binary.
-	handler, err := filter.NewHandler(logger, mgr.GetClient())
+	handler, err := filter.NewHandler(logger, mgr.GetClient(), reporter)
 	if err != nil {
 		logger.Fatal("Error creating Handler", zap.Error(err))
 	}
