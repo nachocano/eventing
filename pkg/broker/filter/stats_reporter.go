@@ -149,13 +149,13 @@ func NewStatsReporter() (*Reporter, error) {
 			Description: filterTimeInMsecM.Description(),
 			Measure:     filterTimeInMsecM,
 			Aggregation: view.Distribution(utils.Buckets125(0.1, 10)...), // 0.1, 0.2, 0.5, 1, 2, 5, 10
-			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTypeKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.filterResultKey},
+			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTagKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.filterResultKey},
 		},
 		&view.View{
 			Description: deliveryTimeInMsecM.Description(),
 			Measure:     deliveryTimeInMsecM,
 			Aggregation: view.Distribution(utils.Buckets125(1, 100)...), // 1, 2, 5, 10, 20, 50, 100
-			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTypeKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.resultKey},
+			TagKeys:     []tag.Key{r.namespaceTagKey, r.triggerTagKey, r.brokerTagKey, r.triggerTypeKey, r.triggerSourceKey, r.resultKey},
 		},
 	)
 	if err != nil {
