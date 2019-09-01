@@ -17,11 +17,11 @@ limitations under the License.
 package ingress
 
 import (
-	"github.com/pkg/errors"
-	"knative.dev/eventing/pkg/metrics/metricskey"
-	"knative.dev/pkg/metrics/metricstest"
 	"testing"
 	"time"
+
+	"knative.dev/eventing/pkg/metrics/metricskey"
+	"knative.dev/pkg/metrics/metricstest"
 )
 
 // unregister, ehm, unregisters the metrics that were registered, by
@@ -33,19 +33,14 @@ func unregister() {
 }
 
 func TestStatsReporter(t *testing.T) {
-	r := &Reporter{}
-
 	args := &ReportArgs{
 		ns:        "testns",
 		broker:    "testbroker",
 		eventType: "testeventtype",
 	}
-	if err := r.ReportEventCount(args, errors.New("error")); err == nil {
-		t.Error("Reporter expected an error for Report call before init. Got success.")
-	}
 
-	var err error
-	if r, err = NewStatsReporter(); err != nil {
+	r, err := NewStatsReporter()
+	if err != nil {
 		t.Fatalf("Failed to create a new reporter: %v", err)
 	}
 	// Without this `go test ... -count=X`, where X > 1, fails, since
