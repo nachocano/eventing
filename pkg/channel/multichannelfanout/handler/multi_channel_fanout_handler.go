@@ -23,7 +23,7 @@ limitations under the License.
 // requests to the multichannelfanout.Handler. When a new configuration is available, a new
 // multichannelfanout.Handler is created and swapped in for all subsequent requests. The old
 // multichannelfanout.Handler is discarded.
-package multichannelfanout
+package handler
 
 import (
 	"context"
@@ -34,12 +34,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"knative.dev/eventing/pkg/channel/fanout"
+	fanout "knative.dev/eventing/pkg/channel/fanout/handler"
+	"knative.dev/eventing/pkg/channel/multichannelfanout"
 )
 
 // makeChannelKeyFromConfig creates the channel key for a given channelConfig. It is a helper around
 // MakeChannelKey.
-func makeChannelKeyFromConfig(config ChannelConfig) string {
+func makeChannelKeyFromConfig(config multichannelfanout.ChannelConfig) string {
 	return config.HostName
 }
 
@@ -49,11 +50,11 @@ func makeChannelKeyFromConfig(config ChannelConfig) string {
 type Handler struct {
 	logger   *zap.Logger
 	handlers map[string]*fanout.Handler
-	config   Config
+	config   multichannelfanout.Config
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(logger *zap.Logger, conf Config) (*Handler, error) {
+func NewHandler(logger *zap.Logger, conf multichannelfanout.Config) (*Handler, error) {
 	handlers := make(map[string]*fanout.Handler, len(conf.ChannelConfigs))
 
 	for _, cc := range conf.ChannelConfigs {
@@ -80,13 +81,13 @@ func NewHandler(logger *zap.Logger, conf Config) (*Handler, error) {
 // ConfigDiffs diffs the new config with the existing config. If there are no differences, then the
 // empty string is returned. If there are differences, then a non-empty string is returned
 // describing the differences.
-func (h *Handler) ConfigDiff(updated Config) string {
+func (h *Handler) ConfigDiff(updated multichannelfanout.Config) string {
 	return cmp.Diff(h.config, updated)
 }
 
 // CopyWithNewConfig creates a new copy of this Handler with all the fields identical, except the
 // new Handler uses conf, rather than copying the existing Handler's config.
-func (h *Handler) CopyWithNewConfig(conf Config) (*Handler, error) {
+func (h *Handler) CopyWithNewConfig(conf multichannelfanout.Config) (*Handler, error) {
 	return NewHandler(h.logger, conf)
 }
 

@@ -30,7 +30,8 @@ import (
 
 	cloudevents "github.com/cloudevents/sdk-go"
 	"go.uber.org/zap"
-	"knative.dev/eventing/pkg/channel/multichannelfanout"
+	. "knative.dev/eventing/pkg/channel/multichannelfanout"
+	multichannelfanout "knative.dev/eventing/pkg/channel/multichannelfanout/handler"
 )
 
 // Handler is an http.Handler that atomically swaps between underlying handlers.
@@ -43,7 +44,7 @@ type Handler struct {
 }
 
 // UpdateConfig updates the configuration to use the new config, returning an error if it can't.
-type UpdateConfig func(config *multichannelfanout.Config) error
+type UpdateConfig func(config *Config) error
 
 var _ UpdateConfig = (&Handler{}).UpdateConfig
 
@@ -58,7 +59,7 @@ func NewHandler(handler *multichannelfanout.Handler, logger *zap.Logger) *Handle
 
 // NewEmptyHandler creates a new swappable.Handler with an empty configuration.
 func NewEmptyHandler(logger *zap.Logger) (*Handler, error) {
-	h, err := multichannelfanout.NewHandler(logger, multichannelfanout.Config{})
+	h, err := multichannelfanout.NewHandler(logger, Config{})
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +81,7 @@ func (h *Handler) setMultiChannelFanoutHandler(nh *multichannelfanout.Handler) {
 // UpdateConfig copies the current inner multichannelfanout.Handler with the new configuration. If
 // the new configuration is valid, then the new inner handler is swapped in and will start serving
 // HTTP traffic.
-func (h *Handler) UpdateConfig(config *multichannelfanout.Config) error {
+func (h *Handler) UpdateConfig(config *Config) error {
 	if config == nil {
 		return errors.New("nil config")
 	}

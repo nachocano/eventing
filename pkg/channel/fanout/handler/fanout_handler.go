@@ -19,7 +19,7 @@ limitations under the License.
 // single Knative Channel.
 // It will normally be used in conjunction with multichannelfanout.Handler, which contains multiple
 // fanout.Handlers, each corresponding to a single Knative Channel.
-package fanout
+package handler
 
 import (
 	"context"
@@ -30,6 +30,7 @@ import (
 	"go.uber.org/zap"
 	eventingduck "knative.dev/eventing/pkg/apis/duck/v1alpha1"
 	"knative.dev/eventing/pkg/channel"
+	"knative.dev/eventing/pkg/channel/fanout"
 )
 
 const (
@@ -38,17 +39,9 @@ const (
 	eventBufferSize = 500
 )
 
-// Config for a fanout.Handler.
-type Config struct {
-	Subscriptions []eventingduck.SubscriberSpec `json:"subscriptions"`
-	// AsyncHandler controls whether the Subscriptions are called synchronous or asynchronously.
-	// It is expected to be false when used as a sidecar.
-	AsyncHandler bool `json:"asyncHandler,omitempty"`
-}
-
 // Handler is a http.Handler that takes a single request in and fans it out to N other servers.
 type Handler struct {
-	config Config
+	config fanout.Config
 
 	receivedEvents chan *forwardEvent
 	receiver       *channel.EventReceiver
@@ -68,7 +61,7 @@ type forwardEvent struct {
 }
 
 // NewHandler creates a new fanout.Handler.
-func NewHandler(logger *zap.Logger, config Config) (*Handler, error) {
+func NewHandler(logger *zap.Logger, config fanout.Config) (*Handler, error) {
 	handler := &Handler{
 		logger:         logger,
 		config:         config,

@@ -14,10 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package multichannelfanout
+package handler
 
 import (
 	"context"
+	"knative.dev/eventing/pkg/channel/multichannelfanout"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -38,13 +39,13 @@ const (
 func TestNewHandler(t *testing.T) {
 	testCases := []struct {
 		name      string
-		config    Config
+		config    multichannelfanout.Config
 		createErr string
 	}{
 		{
 			name: "duplicate channel key",
-			config: Config{
-				ChannelConfigs: []ChannelConfig{
+			config: multichannelfanout.Config{
+				ChannelConfigs: []multichannelfanout.ChannelConfig{
 					{
 						HostName: "duplicatekey",
 					},
@@ -75,8 +76,8 @@ func TestNewHandler(t *testing.T) {
 }
 
 func TestCopyWithNewConfig(t *testing.T) {
-	orig := Config{
-		ChannelConfigs: []ChannelConfig{
+	orig := multichannelfanout.Config{
+		ChannelConfigs: []multichannelfanout.ChannelConfig{
 			{
 				Namespace: "default",
 				Name:      "c1",
@@ -90,8 +91,8 @@ func TestCopyWithNewConfig(t *testing.T) {
 			},
 		},
 	}
-	updated := Config{
-		ChannelConfigs: []ChannelConfig{
+	updated := multichannelfanout.Config{
+		ChannelConfigs: []multichannelfanout.ChannelConfig{
 			{
 				Namespace: "default",
 				Name:      "somethingdifferent",
@@ -128,8 +129,8 @@ func TestCopyWithNewConfig(t *testing.T) {
 }
 
 func TestConfigDiff(t *testing.T) {
-	config := Config{
-		ChannelConfigs: []ChannelConfig{
+	config := multichannelfanout.Config{
+		ChannelConfigs: []multichannelfanout.ChannelConfig{
 			{
 				Namespace: "default",
 				Name:      "c1",
@@ -145,8 +146,8 @@ func TestConfigDiff(t *testing.T) {
 	}
 	testCases := []struct {
 		name         string
-		orig         Config
-		updated      Config
+		orig         multichannelfanout.Config
+		updated      multichannelfanout.Config
 		expectedDiff bool
 	}{
 		{
@@ -158,8 +159,8 @@ func TestConfigDiff(t *testing.T) {
 		{
 			name: "different",
 			orig: config,
-			updated: Config{
-				ChannelConfigs: []ChannelConfig{
+			updated: multichannelfanout.Config{
+				ChannelConfigs: []multichannelfanout.ChannelConfig{
 					{
 						Namespace: "default",
 						Name:      "c1",
@@ -194,24 +195,24 @@ func TestConfigDiff(t *testing.T) {
 func TestServeHTTP(t *testing.T) {
 	testCases := map[string]struct {
 		name               string
-		config             Config
+		config             multichannelfanout.Config
 		respStatusCode     int
 		key                string
 		expectedStatusCode int
 	}{
 		"non-existent channel": {
-			config:             Config{},
+			config:             multichannelfanout.Config{},
 			key:                "default.does-not-exist",
 			expectedStatusCode: http.StatusInternalServerError,
 		},
 		"bad host": {
-			config:             Config{},
+			config:             multichannelfanout.Config{},
 			key:                "no-dot",
 			expectedStatusCode: http.StatusInternalServerError,
 		},
 		"pass through failure": {
-			config: Config{
-				ChannelConfigs: []ChannelConfig{
+			config: multichannelfanout.Config{
+				ChannelConfigs: []multichannelfanout.ChannelConfig{
 					{
 						Namespace: "ns",
 						Name:      "name",
@@ -231,8 +232,8 @@ func TestServeHTTP(t *testing.T) {
 			expectedStatusCode: http.StatusInternalServerError,
 		},
 		"choose channel": {
-			config: Config{
-				ChannelConfigs: []ChannelConfig{
+			config: multichannelfanout.Config{
+				ChannelConfigs: []multichannelfanout.ChannelConfig{
 					{
 
 						Namespace: "ns",
@@ -302,7 +303,7 @@ func TestServeHTTP(t *testing.T) {
 	}
 }
 
-func replaceDomains(config Config, replacement string) {
+func replaceDomains(config multichannelfanout.Config, replacement string) {
 	for i, cc := range config.ChannelConfigs {
 		for j, sub := range cc.FanoutConfig.Subscriptions {
 			if sub.SubscriberURI == replaceDomain {

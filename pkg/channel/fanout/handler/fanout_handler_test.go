@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fanout
+package handler
 
 import (
 	"context"
@@ -30,6 +30,7 @@ import (
 	"go.uber.org/zap"
 	eventingduck "knative.dev/eventing/pkg/apis/duck/v1alpha1"
 	"knative.dev/eventing/pkg/channel"
+	"knative.dev/eventing/pkg/channel/fanout"
 )
 
 // Domains used in subscriptions, which will be replaced by the real domains of the started HTTP
@@ -226,7 +227,7 @@ func TestFanoutHandler_ServeHTTP(t *testing.T) {
 				subs = append(subs, sub)
 			}
 
-			h, err := NewHandler(zap.NewNop(), Config{Subscriptions: subs})
+			h, err := NewHandler(zap.NewNop(), fanout.Config{Subscriptions: subs})
 			if err != nil {
 				t.Fatalf("NewHandler failed. Error:%s", err)
 			}
