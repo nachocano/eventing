@@ -41,6 +41,7 @@ type ResourceInformer interface {
 
 // ResourceTracker is a tracker capable of tracking Resources.
 type ResourceTracker interface {
+	tracker.Interface
 	// TrackInNamespace returns a function that can be used to watch arbitrary Resources in the same
 	// namespace as obj. Any change will cause a callback for obj.
 	TrackInNamespace(obj metav1.Object) func(corev1.ObjectReference) error
@@ -156,9 +157,17 @@ func (t *resourceTracker) TrackInNamespace(obj metav1.Object) func(corev1.Object
 		// This is often used by Trigger and Subscription, both of which pass in refs that do not
 		// specify the namespace.
 		ref.Namespace = obj.GetNamespace()
-		if err := t.ensureTracking(ref); err != nil {
-			return err
-		}
-		return t.tracker.Track(ref, obj)
+		return t.Track(ref, obj)
 	}
+}
+
+func (t *resourceTracker) Track(ref corev1.ObjectReference, obj interface{}) error {
+	if err := t.ensureTracking(ref); err != nil {
+		return err
+	}
+	return t.tracker.Track(ref, obj)
+}
+
+func (t *resourceTracker) OnChanged(obj interface{}) {
+	t.tracker.OnChanged(obj)
 }
