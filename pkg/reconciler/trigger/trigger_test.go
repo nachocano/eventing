@@ -136,7 +136,7 @@ func TestAllCases(t *testing.T) {
 					reconciletesting.WithTriggerSubscriberURI(subscriberURI),
 					// The first reconciliation will initialize the status conditions.
 					reconciletesting.WithInitTriggerConditions,
-					reconciletesting.WithTriggerBrokerFailed("DoesNotExist", "Broker does not exist"),
+					reconciletesting.WithTriggerBrokerFailed("BrokerDoesNotExist", "Broker does not exist"),
 				),
 			}},
 		}, {
@@ -160,7 +160,7 @@ func TestAllCases(t *testing.T) {
 					reconciletesting.WithTriggerSubscriberURI(subscriberURI),
 					// The first reconciliation will initialize the status conditions.
 					reconciletesting.WithInitTriggerConditions,
-					reconciletesting.WithTriggerBrokerFailed("DoesNotExist", "Broker does not exist"),
+					reconciletesting.WithTriggerBrokerFailed("BrokerDoesNotExist", "Broker does not exist"),
 				),
 			}},
 		}, {

@@ -160,7 +160,7 @@ func (r *Reconciler) reconcile(ctx context.Context, t *v1alpha1.Trigger) error {
 	if err != nil {
 		logging.FromContext(ctx).Error("Unable to get the Broker", zap.Error(err))
 		if apierrs.IsNotFound(err) {
-			t.Status.MarkBrokerFailed("DoesNotExist", "Broker does not exist")
+			t.Status.MarkBrokerFailed("BrokerDoesNotExist", "Broker does not exist")
 		} else {
 			t.Status.MarkBrokerFailed("BrokerGetFailed", "Failed to get broker")
 		}
