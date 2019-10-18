@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"runtime"
 	"time"
 
 	cloudevents "github.com/cloudevents/sdk-go"
@@ -28,22 +29,21 @@ type Handler struct {
 	BrokerName string
 	Namespace  string
 	Reporter   StatsReporter
-	Workers    int
 	QueueSize  int
 
 	jobs chan Job
 }
 
 type Job struct {
-	sendingCTX   context.Context
-	event        cloudevents.Event
+	sendingCTX   *context.Context
+	event        *cloudevents.Event
 	reporterArgs *ReportArgs
 }
 
 func (h *Handler) Sender(jobs <-chan Job) {
 	for job := range jobs {
 		start := time.Now()
-		rctx, _, _ := h.CeClient.Send(job.sendingCTX, job.event)
+		rctx, _, _ := h.CeClient.Send(*job.sendingCTX, *job.event)
 		rtctx := cloudevents.HTTPTransportContextFrom(rctx)
 		// Record the dispatch time.
 		h.Reporter.ReportEventDispatchTime(job.reporterArgs, rtctx.StatusCode, time.Since(start))
@@ -57,9 +57,11 @@ func (h *Handler) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Worker pool.
+	workers := runtime.NumCPU()
+	h.Logger.Info("", zap.Any("workers", workers))
+	runtime.GOMAXPROCS(workers)
 	h.jobs = make(chan Job, h.QueueSize)
-	for w := 1; w <= h.Workers; w++ {
+	for w := 1; w <= workers; w++ {
 		go h.Sender(h.jobs)
 	}
 
@@ -122,8 +124,8 @@ func (h *Handler) serveHTTP(ctx context.Context, event cloudevents.Event, resp *
 	sendingCTX = trace.NewContext(sendingCTX, trace.FromContext(ctx))
 
 	job := Job{
-		sendingCTX:   sendingCTX,
-		event:        event,
+		sendingCTX:   &sendingCTX,
+		event:        &event,
 		reporterArgs: reporterArgs,
 	}
 	h.jobs <- job
