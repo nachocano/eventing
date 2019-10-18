@@ -28,11 +28,40 @@ type Handler struct {
 	BrokerName string
 	Namespace  string
 	Reporter   StatsReporter
+	Workers    int
+	QueueSize  int
+
+	jobs chan Job
+}
+
+type Job struct {
+	sendingCTX   context.Context
+	event        cloudevents.Event
+	reporterArgs *ReportArgs
+}
+
+func (h *Handler) Sender(jobs <-chan Job) {
+	for job := range jobs {
+		start := time.Now()
+		rctx, _, _ := h.CeClient.Send(job.sendingCTX, job.event)
+		rtctx := cloudevents.HTTPTransportContextFrom(rctx)
+		// Record the dispatch time.
+		h.Reporter.ReportEventDispatchTime(job.reporterArgs, rtctx.StatusCode, time.Since(start))
+		// Record the event count.
+		h.Reporter.ReportEventCount(job.reporterArgs, rtctx.StatusCode)
+	}
+
 }
 
 func (h *Handler) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	// Worker pool.
+	h.jobs = make(chan Job, h.QueueSize)
+	for w := 1; w <= h.Workers; w++ {
+		go h.Sender(h.jobs)
+	}
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -87,19 +116,21 @@ func (h *Handler) serveHTTP(ctx context.Context, event cloudevents.Event, resp *
 		return nil
 	}
 
-	start := time.Now()
 	sendingCTX := utils.ContextFrom(tctx, h.ChannelURI)
 	// Due to an issue in utils.ContextFrom, we don't retain the original trace context from ctx, so
 	// bring it in manually.
 	sendingCTX = trace.NewContext(sendingCTX, trace.FromContext(ctx))
 
-	rctx, _, err := h.CeClient.Send(sendingCTX, event)
-	rtctx := cloudevents.HTTPTransportContextFrom(rctx)
-	// Record the dispatch time.
-	h.Reporter.ReportEventDispatchTime(reporterArgs, rtctx.StatusCode, time.Since(start))
-	// Record the event count.
-	h.Reporter.ReportEventCount(reporterArgs, rtctx.StatusCode)
-	return err
+	job := Job{
+		sendingCTX:   sendingCTX,
+		event:        event,
+		reporterArgs: reporterArgs,
+	}
+	h.jobs <- job
+
+	// Always return accepted. No guarantees if we cannot send it to the channel.
+	resp.Status = http.StatusAccepted
+	return nil
 }
 
 func (h *Handler) decrementTTL(event *cloudevents.Event) bool {

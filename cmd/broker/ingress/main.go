@@ -61,6 +61,8 @@ type envConfig struct {
 	Broker    string `envconfig:"BROKER" required:"true"`
 	Channel   string `envconfig:"CHANNEL" required:"true"`
 	Namespace string `envconfig:"NAMESPACE" required:"true"`
+	Workers   int    `envconfig:"WORKERS" default:"10"`
+	QueueSize int    `envconfig:"QUEUE_SIZE" default:"10000"`
 }
 
 func main() {
@@ -150,6 +152,8 @@ func main() {
 		BrokerName: env.Broker,
 		Namespace:  env.Namespace,
 		Reporter:   reporter,
+		Workers:    env.Workers,
+		QueueSize:  env.QueueSize,
 	}
 
 	// configMapWatcher does not block, so start it first.
