@@ -16,7 +16,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: config-mako
-  namespace: perf-eventing
+  namespace: default
 
 data:
   _example: |
