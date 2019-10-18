@@ -3,15 +3,19 @@ package kncloudevents
 import (
 	nethttp "net/http"
 
-	"github.com/cloudevents/sdk-go"
+	cloudevents "github.com/cloudevents/sdk-go"
 	"github.com/cloudevents/sdk-go/pkg/cloudevents/transport/http"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/plugin/ochttp/propagation/b3"
 	"knative.dev/pkg/tracing"
 )
 
+// ConnectionArgs allow to configure connection parameters to the underlying
+// HTTP Client transport.
 type ConnectionArgs struct {
-	MaxIdleConns        int
+	// MaxIdleConns refers to the max idle connections, as in net/http/transport.
+	MaxIdleConns int
+	// MaxIdleConnsPerHost refers to the max idle connections per host, as in net/http/transport.
 	MaxIdleConnsPerHost int
 }
 
