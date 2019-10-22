@@ -30,7 +30,7 @@ import (
 )
 
 // MakeSubscription returns a placeholder subscription for broker 'b', channelable 'c', and service 'svc'.
-func MakeSubscription(b *v1alpha1.Broker, c *duckv1alpha1.Channelable, svc *corev1.Service) *messagingv1alpha1.Subscription {
+func MakeSubscription(b *v1alpha1.Broker, c *duckv1alpha1.Channelable, svc *corev1.ObjectReference) *messagingv1alpha1.Subscription {
 	return &messagingv1alpha1.Subscription{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: b.Namespace,
@@ -47,11 +47,7 @@ func MakeSubscription(b *v1alpha1.Broker, c *duckv1alpha1.Channelable, svc *core
 				Name:       c.Name,
 			},
 			Subscriber: &messagingv1alpha1.SubscriberSpec{
-				Ref: &corev1.ObjectReference{
-					APIVersion: "v1",
-					Kind:       "Service",
-					Name:       svc.Name,
-				},
+				Ref: svc,
 			},
 		},
 	}

@@ -63,6 +63,10 @@ const (
 	ingressSubscriptionGetFailed    = "IngressSubscriptionGetFailed"
 )
 
+var (
+	k8sServiceGVK = corev1.SchemeGroupVersion.WithKind("Service")
+)
+
 type Reconciler struct {
 	*reconciler.Base
 
@@ -204,37 +208,19 @@ func (r *Reconciler) reconcile(ctx context.Context, b *v1alpha1.Broker) error {
 	b.Status.TriggerChannel = &triggerChannelObjRef
 	b.Status.PropagateTriggerChannelReadiness(&triggerChan.Status)
 
-	filterDeployment, err := r.reconcileFilterDeployment(ctx, b)
+	_, err = r.reconcileFilterResources(ctx, b)
 	if err != nil {
-		logging.FromContext(ctx).Error("Problem reconciling filter Deployment", zap.Error(err))
-		b.Status.MarkFilterFailed("DeploymentFailure", "%v", err)
-		return err
-	}
-	_, err = r.reconcileFilterService(ctx, b)
-	if err != nil {
-		logging.FromContext(ctx).Error("Problem reconciling filter Service", zap.Error(err))
-		b.Status.MarkFilterFailed("ServiceFailure", "%v", err)
-		return err
-	}
-	b.Status.PropagateFilterDeploymentAvailability(filterDeployment)
-
-	ingressDeployment, err := r.reconcileIngressDeployment(ctx, b, triggerChan)
-	if err != nil {
-		logging.FromContext(ctx).Error("Problem reconciling ingress Deployment", zap.Error(err))
-		b.Status.MarkIngressFailed("DeploymentFailure", "%v", err)
 		return err
 	}
 
-	svc, err := r.reconcileIngressService(ctx, b)
+	svc, err := r.reconcileIngressResources(ctx, b, triggerChan)
 	if err != nil {
-		logging.FromContext(ctx).Error("Problem reconciling ingress Service", zap.Error(err))
-		b.Status.MarkIngressFailed("ServiceFailure", "%v", err)
 		return err
 	}
-	b.Status.PropagateIngressDeploymentAvailability(ingressDeployment)
+
 	b.Status.SetAddress(&apis.URL{
 		Scheme: "http",
-		Host:   names.ServiceHostName(svc.Name, svc.Namespace),
+		Host:   names.ServiceHostName(svc.Name, b.Namespace),
 	})
 
 	ingressChannelName := resources.BrokerChannelName(b.Name, "ingress")
@@ -300,6 +286,34 @@ func (r *Reconciler) updateStatus(ctx context.Context, desired *v1alpha1.Broker)
 	return b, err
 }
 
+func (r *Reconciler) reconcileFilterResources(ctx context.Context, b *v1alpha1.Broker) (*corev1.ObjectReference, error) {
+	resourceAnnotationValue, ok := b.GetAnnotations()[v1alpha1.ResourceAnnotationKey]
+	if !ok || resourceAnnotationValue == v1alpha1.DeploymentResourceAnnotationValue {
+		filterDeployment, err := r.reconcileFilterDeployment(ctx, b)
+		if err != nil {
+			logging.FromContext(ctx).Error("Problem reconciling filter Deployment", zap.Error(err))
+			b.Status.MarkFilterFailed("DeploymentFailure", "%v", err)
+			return nil, err
+		}
+		svc, err := r.reconcileK8sFilterService(ctx, b)
+		if err != nil {
+			logging.FromContext(ctx).Error("Problem reconciling filter Service", zap.Error(err))
+			b.Status.MarkFilterFailed("K8sServiceFailure", "%v", err)
+			return nil, err
+		}
+		b.Status.PropagateFilterDeploymentAvailability(filterDeployment)
+		svcObjRef := &corev1.ObjectReference{
+			APIVersion: k8sServiceGVK.GroupVersion().String(),
+			Kind:       k8sServiceGVK.Kind,
+			Name:       svc.Name,
+		}
+		return svcObjRef, nil
+	} else if resourceAnnotationValue == v1alpha1.ServiceResourceAnnotationValue {
+		return nil, fmt.Errorf("not implemented")
+	}
+	return nil, fmt.Errorf("invalid resource annotatation: %s", resourceAnnotationValue)
+}
+
 // reconcileFilterDeployment reconciles Broker's 'b' filter deployment.
 func (r *Reconciler) reconcileFilterDeployment(ctx context.Context, b *v1alpha1.Broker) (*v1.Deployment, error) {
 	expected := resources.MakeFilterDeployment(&resources.FilterArgs{
@@ -310,10 +324,10 @@ func (r *Reconciler) reconcileFilterDeployment(ctx context.Context, b *v1alpha1.
 	return r.reconcileDeployment(ctx, expected)
 }
 
-// reconcileFilterService reconciles Broker's 'b' filter service.
-func (r *Reconciler) reconcileFilterService(ctx context.Context, b *v1alpha1.Broker) (*corev1.Service, error) {
-	expected := resources.MakeFilterService(b)
-	return r.reconcileService(ctx, expected)
+// reconcileK8sFilterService reconciles Broker's 'b' filter service.
+func (r *Reconciler) reconcileK8sFilterService(ctx context.Context, b *v1alpha1.Broker) (*corev1.Service, error) {
+	expected := resources.MakeK8sFilterService(b)
+	return r.reconcileK8sService(ctx, expected)
 }
 
 func newTriggerChannel(b *v1alpha1.Broker) (*unstructured.Unstructured, error) {
@@ -423,8 +437,8 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, d *v1.Deployment) 
 	return current, nil
 }
 
-// reconcileService reconciles the K8s Service 'svc'.
-func (r *Reconciler) reconcileService(ctx context.Context, svc *corev1.Service) (*corev1.Service, error) {
+// reconcileK8sService reconciles the K8s Service 'svc'.
+func (r *Reconciler) reconcileK8sService(ctx context.Context, svc *corev1.Service) (*corev1.Service, error) {
 	current, err := r.k8sServiceLister.Services(svc.Namespace).Get(svc.Name)
 	if apierrs.IsNotFound(err) {
 		current, err = r.KubeClientSet.CoreV1().Services(svc.Namespace).Create(svc)
@@ -451,7 +465,36 @@ func (r *Reconciler) reconcileService(ctx context.Context, svc *corev1.Service) 
 	return current, nil
 }
 
-// reconcileIngressDeploymentCRD reconciles the Ingress Deployment for a CRD backed channel.
+// reconcileIngressResources reconciles the Ingress Resources.
+func (r *Reconciler) reconcileIngressResources(ctx context.Context, b *v1alpha1.Broker, c *duckv1alpha1.Channelable) (*corev1.ObjectReference, error) {
+	resourceAnnotationValue, ok := b.GetAnnotations()[v1alpha1.ResourceAnnotationKey]
+	if !ok || resourceAnnotationValue == v1alpha1.DeploymentResourceAnnotationValue {
+		ingressDeployment, err := r.reconcileIngressDeployment(ctx, b, c)
+		if err != nil {
+			logging.FromContext(ctx).Error("Problem reconciling ingress Deployment", zap.Error(err))
+			b.Status.MarkIngressFailed("DeploymentFailure", "%v", err)
+			return nil, err
+		}
+		svc, err := r.reconcileK8sIngressService(ctx, b)
+		if err != nil {
+			logging.FromContext(ctx).Error("Problem reconciling ingress Service", zap.Error(err))
+			b.Status.MarkIngressFailed("K8sServiceFailure", "%v", err)
+			return nil, err
+		}
+		b.Status.PropagateIngressDeploymentAvailability(ingressDeployment)
+		svcObjRef := &corev1.ObjectReference{
+			APIVersion: k8sServiceGVK.GroupVersion().String(),
+			Kind:       k8sServiceGVK.Kind,
+			Name:       svc.Name,
+		}
+		return svcObjRef, nil
+	} else if resourceAnnotationValue == v1alpha1.ServiceResourceAnnotationValue {
+		return nil, fmt.Errorf("not implemented")
+	}
+	return nil, fmt.Errorf("invalid resource annotatation: %s", resourceAnnotationValue)
+}
+
+// reconcileIngressDeployment reconciles the Ingress Deployment.
 func (r *Reconciler) reconcileIngressDeployment(ctx context.Context, b *v1alpha1.Broker, c *duckv1alpha1.Channelable) (*v1.Deployment, error) {
 	expected := resources.MakeIngress(&resources.IngressArgs{
 		Broker:             b,
@@ -462,13 +505,13 @@ func (r *Reconciler) reconcileIngressDeployment(ctx context.Context, b *v1alpha1
 	return r.reconcileDeployment(ctx, expected)
 }
 
-// reconcileIngressService reconciles the Ingress Service.
-func (r *Reconciler) reconcileIngressService(ctx context.Context, b *v1alpha1.Broker) (*corev1.Service, error) {
-	expected := resources.MakeIngressService(b)
-	return r.reconcileService(ctx, expected)
+// reconcileK8sIngressService reconciles the Ingress Service.
+func (r *Reconciler) reconcileK8sIngressService(ctx context.Context, b *v1alpha1.Broker) (*corev1.Service, error) {
+	expected := resources.MakeK8sIngressService(b)
+	return r.reconcileK8sService(ctx, expected)
 }
 
-func (r *Reconciler) reconcileIngressSubscription(ctx context.Context, b *v1alpha1.Broker, c *duckv1alpha1.Channelable, svc *corev1.Service) (*messagingv1alpha1.Subscription, error) {
+func (r *Reconciler) reconcileIngressSubscription(ctx context.Context, b *v1alpha1.Broker, c *duckv1alpha1.Channelable, svc *corev1.ObjectReference) (*messagingv1alpha1.Subscription, error) {
 	expected := resources.MakeSubscription(b, c, svc)
 
 	sub, err := r.subscriptionLister.Subscriptions(b.Namespace).Get(expected.Name)

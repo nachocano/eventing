@@ -61,10 +61,10 @@ func TestMakeSubscription(t *testing.T) {
 					UID:       "1234",
 				},
 			}
-			svc := &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "my-svc",
-				},
+			svc := &corev1.ObjectReference{
+				APIVersion: "v1",
+				Kind:       "Service",
+				Name:       "my-svc",
 			}
 			sub := MakeSubscription(b, &tc.channelable, svc)
 

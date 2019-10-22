@@ -122,8 +122,8 @@ func MakeFilterDeployment(args *FilterArgs) *appsv1.Deployment {
 	}
 }
 
-// MakeFilterService creates the in-memory representation of the Broker's filter Service.
-func MakeFilterService(b *eventingv1alpha1.Broker) *corev1.Service {
+// MakeK8sFilterService creates the in-memory representation of the Broker's filter Service.
+func MakeK8sFilterService(b *eventingv1alpha1.Broker) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: b.Namespace,

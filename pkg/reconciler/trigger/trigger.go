@@ -308,7 +308,7 @@ func (r *Reconciler) updateStatus(ctx context.Context, desired *v1alpha1.Trigger
 // getBrokerFilterService returns the K8s service for trigger 't' if exists,
 // otherwise it returns an error.
 func (r *Reconciler) getBrokerFilterService(ctx context.Context, b *v1alpha1.Broker) (*corev1.Service, error) {
-	svcName := brokerresources.MakeFilterService(b).Name
+	svcName := brokerresources.MakeK8sFilterService(b).Name
 	return r.serviceLister.Services(b.Namespace).Get(svcName)
 }
 

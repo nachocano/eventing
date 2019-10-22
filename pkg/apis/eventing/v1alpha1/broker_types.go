@@ -32,6 +32,12 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+const (
+	ResourceAnnotationKey             = "knative.dev/resource"
+	ServiceResourceAnnotationValue    = "service"
+	DeploymentResourceAnnotationValue = "deployment"
+)
+
 // Broker collects a pool of events that are consumable using Triggers. Brokers
 // provide a well-known endpoint for event delivery that senders can use with
 // minimal knowledge of the event routing strategy. Receivers use Triggers to

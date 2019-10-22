@@ -753,7 +753,7 @@ func makeSubscriberServiceAsUnstructured() *unstructured.Unstructured {
 }
 
 func makeBrokerFilterService() *corev1.Service {
-	return brokerresources.MakeFilterService(makeBroker())
+	return brokerresources.MakeK8sFilterService(makeBroker())
 }
 
 func makeServiceURI() *url.URL {

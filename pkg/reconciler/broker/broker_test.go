@@ -286,7 +286,7 @@ func TestReconcile(t *testing.T) {
 					WithInitBrokerConditions,
 					WithTriggerChannelReady(),
 					WithBrokerTriggerChannel(createTriggerChannelRef()),
-					WithFilterFailed("ServiceFailure", "inducing failure for create services")),
+					WithFilterFailed("K8sServiceFailure", "inducing failure for create services")),
 			}},
 			WantEvents: []string{
 				Eventf(corev1.EventTypeWarning, brokerReconcileError, "Broker reconcile error: %v", "inducing failure for create services"),
@@ -326,7 +326,7 @@ func TestReconcile(t *testing.T) {
 					WithInitBrokerConditions,
 					WithTriggerChannelReady(),
 					WithBrokerTriggerChannel(createTriggerChannelRef()),
-					WithFilterFailed("ServiceFailure", "inducing failure for update services")),
+					WithFilterFailed("K8sServiceFailure", "inducing failure for update services")),
 			}},
 			WantEvents: []string{
 				Eventf(corev1.EventTypeWarning, brokerReconcileError, "Broker reconcile error: %v", "inducing failure for update services"),
@@ -462,7 +462,7 @@ func TestReconcile(t *testing.T) {
 					WithTriggerChannelReady(),
 					WithFilterDeploymentAvailable(),
 					WithBrokerTriggerChannel(createTriggerChannelRef()),
-					WithIngressFailed("ServiceFailure", "inducing failure for create services")),
+					WithIngressFailed("K8sServiceFailure", "inducing failure for create services")),
 			}},
 			WantEvents: []string{
 				Eventf(corev1.EventTypeWarning, brokerReconcileError, "Broker reconcile error: %v", "inducing failure for create services"),
@@ -512,7 +512,7 @@ func TestReconcile(t *testing.T) {
 					WithTriggerChannelReady(),
 					WithFilterDeploymentAvailable(),
 					WithBrokerTriggerChannel(createTriggerChannelRef()),
-					WithIngressFailed("ServiceFailure", "inducing failure for update services")),
+					WithIngressFailed("K8sServiceFailure", "inducing failure for update services")),
 			}},
 			WantEvents: []string{
 				Eventf(corev1.EventTypeWarning, brokerReconcileError, "Broker reconcile error: %v", "inducing failure for update services"),

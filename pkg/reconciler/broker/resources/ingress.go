@@ -121,8 +121,8 @@ func MakeIngress(args *IngressArgs) *appsv1.Deployment {
 	}
 }
 
-// MakeIngressService creates the in-memory representation of the Broker's ingress Service.
-func MakeIngressService(b *eventingv1alpha1.Broker) *corev1.Service {
+// MakeK8sIngressService creates the in-memory representation of the Broker's ingress Service.
+func MakeK8sIngressService(b *eventingv1alpha1.Broker) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: b.Namespace,
