@@ -215,12 +215,6 @@ func MakeFilterService(args *FilterArgs) *servingv1.Service {
 											Value: "knative.dev/eventing",
 										},
 									},
-									Ports: []corev1.ContainerPort{
-										{
-											ContainerPort: 9090,
-											Name:          "metrics",
-										},
-									},
 								},
 							},
 						},
