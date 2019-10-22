@@ -215,10 +215,6 @@ func MakeIngressService(args *IngressArgs) *servingv1.Service {
 									},
 									Ports: []corev1.ContainerPort{
 										{
-											ContainerPort: 8080,
-											Name:          "http",
-										},
-										{
 											ContainerPort: 9090,
 											Name:          "metrics",
 										},
