@@ -127,7 +127,8 @@ func MakeK8sIngressService(b *eventingv1alpha1.Broker) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: b.Namespace,
-			// TODO add -ingress to the name to be consistent with the filter service naming.
+			// Do not use *-ingress on purpose as we want this to be the user facing URL.
+			//  <broker-name>-broker.<namespace>.svc.cluster.local
 			Name:   fmt.Sprintf("%s-broker", b.Name),
 			Labels: IngressLabels(b.Name),
 			OwnerReferences: []metav1.OwnerReference{
@@ -155,8 +156,10 @@ func MakeK8sIngressService(b *eventingv1alpha1.Broker) *corev1.Service {
 func MakeIngressService(args *IngressArgs) *servingv1.Service {
 	return &servingv1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       args.Broker.Namespace,
-			Name:            fmt.Sprintf("%s-broker-ingress", args.Broker.Name),
+			Namespace: args.Broker.Namespace,
+			// Do not use *-ingress on purpose as we want this to be the user facing URL.
+			//  <broker-name>-broker.<namespace>.svc.cluster.local
+			Name:            fmt.Sprintf("%s-broker", args.Broker.Name),
 			Labels:          IngressLabels(args.Broker.Name),
 			OwnerReferences: []metav1.OwnerReference{*kmeta.NewControllerRef(args.Broker)},
 		},
