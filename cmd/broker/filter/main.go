@@ -101,7 +101,7 @@ func main() {
 	// Watch the logging config map and dynamically update logging levels.
 	configMapWatcher := configmap.NewInformedWatcher(kubeClient, system.Namespace())
 	// Watch the observability config map and dynamically update metrics exporter.
-	configMapWatcher.Watch(metrics.ConfigMapName(), metrics.UpdateExporterFromConfigMap(component, sl))
+	// configMapWatcher.Watch(metrics.ConfigMapName(), metrics.UpdateExporterFromConfigMap(component, sl))
 	// TODO change the component name to broker once Stackdriver metrics are approved.
 	// Watch the observability config map and dynamically update request logs.
 	configMapWatcher.Watch(logging.ConfigMapName(), logging.UpdateLevelFromConfigMap(sl, atomicLevel, component))
