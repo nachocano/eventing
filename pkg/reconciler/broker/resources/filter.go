@@ -199,12 +199,8 @@ func MakeFilterService(args *FilterArgs) *servingv1.Service {
 											Value: system.Namespace(),
 										},
 										{
-											Name: "NAMESPACE",
-											ValueFrom: &corev1.EnvVarSource{
-												FieldRef: &corev1.ObjectFieldSelector{
-													FieldPath: "metadata.namespace",
-												},
-											},
+											Name:  "NAMESPACE",
+											Value: args.Broker.Namespace,
 										},
 										{
 											Name:  "BROKER",
