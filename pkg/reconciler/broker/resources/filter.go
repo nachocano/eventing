@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	eventingv1alpha1 "knative.dev/eventing/pkg/apis/eventing/v1alpha1"
+	servingv1 "knative.dev/serving/pkg/apis/serving/v1"
 )
 
 // FilterArgs are the arguments to create a Broker's filter Deployment.
@@ -144,6 +145,90 @@ func MakeK8sFilterService(b *eventingv1alpha1.Broker) *corev1.Service {
 				{
 					Name: "metrics",
 					Port: 9090,
+				},
+			},
+		},
+	}
+}
+
+// MakeFilterService creates the in-memory representation of the Broker's filter Service.
+func MakeFilterService(args *FilterArgs) *servingv1.Service {
+	return &servingv1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       args.Broker.Namespace,
+			Name:            fmt.Sprintf("%s-broker-filter", args.Broker.Name),
+			Labels:          FilterLabels(args.Broker.Name),
+			OwnerReferences: []metav1.OwnerReference{*kmeta.NewControllerRef(args.Broker)},
+		},
+		Spec: servingv1.ServiceSpec{
+			ConfigurationSpec: servingv1.ConfigurationSpec{
+				Template: servingv1.RevisionTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: FilterLabels(args.Broker.Name),
+					},
+					Spec: servingv1.RevisionSpec{
+						PodSpec: corev1.PodSpec{
+							ServiceAccountName: args.ServiceAccountName,
+							Containers: []corev1.Container{
+								{
+									Name:  "filter",
+									Image: args.Image,
+									//LivenessProbe: &corev1.Probe{
+									//	Handler: corev1.Handler{
+									//		HTTPGet: &corev1.HTTPGetAction{
+									//			Path: "/healthz",
+									//			Port: intstr.IntOrString{Type: intstr.Int, IntVal: 8080},
+									//		},
+									//	},
+									//	InitialDelaySeconds: 5,
+									//	PeriodSeconds:       2,
+									//},
+									//ReadinessProbe: &corev1.Probe{
+									//	Handler: corev1.Handler{
+									//		HTTPGet: &corev1.HTTPGetAction{
+									//			Path: "/readyz",
+									//			Port: intstr.IntOrString{Type: intstr.Int, IntVal: 8080},
+									//		},
+									//	},
+									//	InitialDelaySeconds: 5,
+									//	PeriodSeconds:       2,
+									//},
+									Env: []corev1.EnvVar{
+										{
+											Name:  system.NamespaceEnvKey,
+											Value: system.Namespace(),
+										},
+										{
+											Name: "NAMESPACE",
+											ValueFrom: &corev1.EnvVarSource{
+												FieldRef: &corev1.ObjectFieldSelector{
+													FieldPath: "metadata.namespace",
+												},
+											},
+										},
+										{
+											Name:  "BROKER",
+											Value: args.Broker.Name,
+										},
+										{
+											Name:  "METRICS_DOMAIN",
+											Value: "knative.dev/eventing",
+										},
+									},
+									Ports: []corev1.ContainerPort{
+										{
+											ContainerPort: 8080,
+											Name:          "http",
+										},
+										{
+											ContainerPort: 9090,
+											Name:          "metrics",
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},

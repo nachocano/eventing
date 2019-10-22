@@ -40,6 +40,9 @@ import (
 	sourcelisters "knative.dev/eventing/pkg/client/listers/sources/v1alpha1"
 	fakesharedclientset "knative.dev/pkg/client/clientset/versioned/fake"
 	"knative.dev/pkg/reconciler/testing"
+	servingv1 "knative.dev/serving/pkg/apis/serving/v1"
+	fakeservingclientset "knative.dev/serving/pkg/client/clientset/versioned/fake"
+	servinglisters "knative.dev/serving/pkg/client/listers/serving/v1"
 )
 
 var subscriberAddToScheme = func(scheme *runtime.Scheme) error {
@@ -51,6 +54,7 @@ var clientSetSchemes = []func(*runtime.Scheme) error{
 	fakekubeclientset.AddToScheme,
 	fakesharedclientset.AddToScheme,
 	fakeeventingclientset.AddToScheme,
+	fakeservingclientset.AddToScheme,
 	fakeapiextensionsclientset.AddToScheme,
 	subscriberAddToScheme,
 }
@@ -94,6 +98,10 @@ func (l *Listers) GetKubeObjects() []runtime.Object {
 
 func (l *Listers) GetEventingObjects() []runtime.Object {
 	return l.sorter.ObjectsForSchemeFunc(fakeeventingclientset.AddToScheme)
+}
+
+func (l *Listers) GetServingObjects() []runtime.Object {
+	return l.sorter.ObjectsForSchemeFunc(fakeservingclientset.AddToScheme)
 }
 
 func (l *Listers) GetSubscriberObjects() []runtime.Object {
@@ -171,10 +179,6 @@ func (l *Listers) GetServiceAccountLister() corev1listers.ServiceAccountLister {
 	return corev1listers.NewServiceAccountLister(l.indexerFor(&corev1.ServiceAccount{}))
 }
 
-func (l *Listers) GetServiceLister() corev1listers.ServiceLister {
-	return corev1listers.NewServiceLister(l.indexerFor(&corev1.Service{}))
-}
-
 func (l *Listers) GetRoleBindingLister() rbacv1listers.RoleBindingLister {
 	return rbacv1listers.NewRoleBindingLister(l.indexerFor(&rbacv1.RoleBinding{}))
 }
@@ -189,4 +193,8 @@ func (l *Listers) GetConfigMapLister() corev1listers.ConfigMapLister {
 
 func (l *Listers) GetCustomResourceDefinitionLister() apiextensionsv1beta1listers.CustomResourceDefinitionLister {
 	return apiextensionsv1beta1listers.NewCustomResourceDefinitionLister(l.indexerFor(&apiextensionsv1beta1.CustomResourceDefinition{}))
+}
+
+func (l *Listers) GetServiceLister() servinglisters.ServiceLister {
+	return servinglisters.NewServiceLister(l.indexerFor(&servingv1.Service{}))
 }

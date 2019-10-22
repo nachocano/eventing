@@ -93,7 +93,7 @@ var (
 		Kind:    "InMemoryChannel",
 	}
 
-	serviceGVK = metav1.GroupVersionKind{
+	coreServiceGVK = metav1.GroupVersionKind{
 		Version: "v1",
 		Kind:    "Service",
 	}
@@ -601,7 +601,7 @@ func TestReconcile(t *testing.T) {
 					WithSubscriptionOwnerReferences(ownerReferences()),
 					WithSubscriptionLabels(ingressSubscriptionLabels(brokerName)),
 					WithSubscriptionChannel(imcGVK, ingressChannelName),
-					WithSubscriptionSubscriberRef(serviceGVK, ingressServiceName)),
+					WithSubscriptionSubscriberRef(coreServiceGVK, ingressServiceName)),
 			},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewBroker(brokerName, testNS,
@@ -657,7 +657,7 @@ func TestReconcile(t *testing.T) {
 					WithSubscriptionOwnerReferences(ownerReferences()),
 					WithSubscriptionLabels(ingressSubscriptionLabels(brokerName)),
 					WithSubscriptionChannel(channelGVK, ingressChannelName),
-					WithSubscriptionSubscriberRef(serviceGVK, "")),
+					WithSubscriptionSubscriberRef(coreServiceGVK, "")),
 			},
 			WantDeletes: []clientgotesting.DeleteActionImpl{{
 				Name: ingressSubscriptionGenerateName,
@@ -716,7 +716,7 @@ func TestReconcile(t *testing.T) {
 					WithSubscriptionOwnerReferences(ownerReferences()),
 					WithSubscriptionLabels(ingressSubscriptionLabels(brokerName)),
 					WithSubscriptionChannel(channelGVK, ingressChannelName),
-					WithSubscriptionSubscriberRef(serviceGVK, "")),
+					WithSubscriptionSubscriberRef(coreServiceGVK, "")),
 			},
 			WantDeletes: []clientgotesting.DeleteActionImpl{{
 				Name: ingressSubscriptionGenerateName,
@@ -726,7 +726,7 @@ func TestReconcile(t *testing.T) {
 					WithSubscriptionOwnerReferences(ownerReferences()),
 					WithSubscriptionLabels(ingressSubscriptionLabels(brokerName)),
 					WithSubscriptionChannel(imcGVK, ingressChannelName),
-					WithSubscriptionSubscriberRef(serviceGVK, ingressServiceName)),
+					WithSubscriptionSubscriberRef(coreServiceGVK, ingressServiceName)),
 			},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewBroker(brokerName, testNS,
@@ -782,7 +782,7 @@ func TestReconcile(t *testing.T) {
 					WithSubscriptionOwnerReferences(ownerReferences()),
 					WithSubscriptionLabels(ingressSubscriptionLabels(brokerName)),
 					WithSubscriptionChannel(imcGVK, ingressChannelName),
-					WithSubscriptionSubscriberRef(serviceGVK, ingressServiceName),
+					WithSubscriptionSubscriberRef(coreServiceGVK, ingressServiceName),
 					WithSubscriptionReady),
 			},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
@@ -807,6 +807,7 @@ func TestReconcile(t *testing.T) {
 			subscriptionLister:        listers.GetSubscriptionLister(),
 			brokerLister:              listers.GetBrokerLister(),
 			k8sServiceLister:          listers.GetK8sServiceLister(),
+			serviceLister:             listers.GetServiceLister(),
 			deploymentLister:          listers.GetDeploymentLister(),
 			filterImage:               filterImage,
 			filterServiceAccountName:  filterSA,

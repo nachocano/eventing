@@ -288,7 +288,7 @@ func TestAllCases(t *testing.T) {
 			// TODO: FIx
 			inmemorychannelInformer: nil,
 			deploymentLister:        listers.GetDeploymentLister(),
-			serviceLister:           listers.GetServiceLister(),
+			serviceLister:           listers.GetK8sServiceLister(),
 			endpointsLister:         listers.GetEndpointsLister(),
 		}
 	},

@@ -38,6 +38,8 @@ import (
 	eventingclient "knative.dev/eventing/pkg/client/injection/client"
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
 	"knative.dev/pkg/injection/clients/dynamicclient"
+	servingclientset "knative.dev/serving/pkg/client/clientset/versioned"
+	servingclient "knative.dev/serving/pkg/client/injection/client"
 )
 
 // Base implements the core controller logic, given a Reconciler.
@@ -47,6 +49,9 @@ type Base struct {
 
 	// EventingClientSet allows us to configure Eventing objects
 	EventingClientSet clientset.Interface
+
+	// ServingClientSet allows us to configure Serving objects
+	ServingClientSet servingclientset.Interface
 
 	// ApiExtensionsClientSet allows us to configure k8s API extension objects.
 	ApiExtensionsClientSet apiextensionsclientset.Interface
@@ -115,6 +120,7 @@ func NewBase(ctx context.Context, controllerAgentName string, cmw configmap.Watc
 	base := &Base{
 		KubeClientSet:     kubeClient,
 		EventingClientSet: eventingclient.Get(ctx),
+		ServingClientSet:  servingclient.Get(ctx),
 		//ApiExtensionsClientSet: apiextclient.Get(ctx),
 		DynamicClientSet: dynamicclient.Get(ctx),
 		ConfigMapWatcher: cmw,

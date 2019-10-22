@@ -78,6 +78,17 @@ func (bs *BrokerStatus) PropagateIngressDeploymentAvailability(d *appsv1.Deploym
 	}
 }
 
+func (bs *BrokerStatus) PropagateIngressServiceStatus(ready *apis.Condition) {
+	switch {
+	case ready == nil:
+		bs.MarkIngressFailed("ServiceStatus", "Service has no Ready type status.")
+	case ready.IsTrue():
+		brokerCondSet.Manage(bs).MarkTrue(BrokerConditionIngress)
+	case ready.IsFalse():
+		bs.MarkIngressFailed(ready.Reason, ready.Message)
+	}
+}
+
 func (bs *BrokerStatus) MarkTriggerChannelFailed(reason, format string, args ...interface{}) {
 	brokerCondSet.Manage(bs).MarkFalse(BrokerConditionTriggerChannel, reason, format, args...)
 }
@@ -137,6 +148,17 @@ func (bs *BrokerStatus) PropagateFilterDeploymentAvailability(d *appsv1.Deployme
 		// I don't know how to propagate the status well, so just give the name of the Deployment
 		// for now.
 		bs.MarkFilterFailed("DeploymentUnavailable", "The Deployment '%s' is unavailable.", d.Name)
+	}
+}
+
+func (bs *BrokerStatus) PropagateFilterServiceStatus(ready *apis.Condition) {
+	switch {
+	case ready == nil:
+		bs.MarkFilterFailed("ServiceStatus", "Service has no Ready type status.")
+	case ready.IsTrue():
+		brokerCondSet.Manage(bs).MarkTrue(BrokerConditionFilter)
+	case ready.IsFalse():
+		bs.MarkFilterFailed(ready.Reason, ready.Message)
 	}
 }
 
