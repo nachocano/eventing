@@ -806,7 +806,7 @@ func TestReconcile(t *testing.T) {
 			Base:                      reconciler.NewBase(ctx, controllerAgentName, cmw),
 			subscriptionLister:        listers.GetSubscriptionLister(),
 			brokerLister:              listers.GetBrokerLister(),
-			serviceLister:             listers.GetK8sServiceLister(),
+			k8sServiceLister:          listers.GetK8sServiceLister(),
 			deploymentLister:          listers.GetDeploymentLister(),
 			filterImage:               filterImage,
 			filterServiceAccountName:  filterSA,

@@ -33,7 +33,8 @@ import (
 	brokerinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1alpha1/broker"
 	subscriptioninformer "knative.dev/eventing/pkg/client/injection/informers/messaging/v1alpha1/subscription"
 	deploymentinformer "knative.dev/pkg/client/injection/kube/informers/apps/v1/deployment"
-	serviceinformer "knative.dev/pkg/client/injection/kube/informers/core/v1/service"
+	corev1serviceinformer "knative.dev/pkg/client/injection/kube/informers/core/v1/service"
+	serviceinformer "knative.dev/serving/pkg/client/injection/informers/serving/v1/service"
 )
 
 const (
@@ -66,14 +67,16 @@ func NewController(
 	deploymentInformer := deploymentinformer.Get(ctx)
 	brokerInformer := brokerinformer.Get(ctx)
 	subscriptionInformer := subscriptioninformer.Get(ctx)
+	k8sServiceInformer := corev1serviceinformer.Get(ctx)
 	serviceInformer := serviceinformer.Get(ctx)
 
 	r := &Reconciler{
 		Base:                      reconciler.NewBase(ctx, controllerAgentName, cmw),
 		brokerLister:              brokerInformer.Lister(),
-		serviceLister:             serviceInformer.Lister(),
+		k8sServiceLister:          k8sServiceInformer.Lister(),
 		deploymentLister:          deploymentInformer.Lister(),
 		subscriptionLister:        subscriptionInformer.Lister(),
+		serviceLister:             serviceInformer.Lister(),
 		ingressImage:              env.IngressImage,
 		ingressServiceAccountName: env.IngressServiceAccount,
 		filterImage:               env.FilterImage,
@@ -87,12 +90,17 @@ func NewController(
 
 	brokerInformer.Informer().AddEventHandler(controller.HandleAll(impl.Enqueue))
 
-	serviceInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
+	k8sServiceInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
 		FilterFunc: controller.Filter(v1alpha1.SchemeGroupVersion.WithKind("Broker")),
 		Handler:    controller.HandleAll(impl.EnqueueControllerOf),
 	})
 
 	deploymentInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
+		FilterFunc: controller.Filter(v1alpha1.SchemeGroupVersion.WithKind("Broker")),
+		Handler:    controller.HandleAll(impl.EnqueueControllerOf),
+	})
+
+	serviceInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
 		FilterFunc: controller.Filter(v1alpha1.SchemeGroupVersion.WithKind("Broker")),
 		Handler:    controller.HandleAll(impl.EnqueueControllerOf),
 	})

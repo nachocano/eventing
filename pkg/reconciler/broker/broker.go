@@ -50,6 +50,7 @@ import (
 	"knative.dev/eventing/pkg/reconciler"
 	"knative.dev/eventing/pkg/reconciler/broker/resources"
 	"knative.dev/eventing/pkg/reconciler/names"
+	servinglisters "knative.dev/serving/pkg/client/listers/serving/v1"
 )
 
 const (
@@ -67,7 +68,8 @@ type Reconciler struct {
 
 	// listers index properties about resources
 	brokerLister       eventinglisters.BrokerLister
-	serviceLister      corev1listers.ServiceLister
+	k8sServiceLister   corev1listers.ServiceLister
+	serviceLister      servinglisters.ServiceLister
 	deploymentLister   appsv1listers.DeploymentLister
 	subscriptionLister messaginglisters.SubscriptionLister
 
@@ -423,7 +425,7 @@ func (r *Reconciler) reconcileDeployment(ctx context.Context, d *v1.Deployment) 
 
 // reconcileService reconciles the K8s Service 'svc'.
 func (r *Reconciler) reconcileService(ctx context.Context, svc *corev1.Service) (*corev1.Service, error) {
-	current, err := r.serviceLister.Services(svc.Namespace).Get(svc.Name)
+	current, err := r.k8sServiceLister.Services(svc.Namespace).Get(svc.Name)
 	if apierrs.IsNotFound(err) {
 		current, err = r.KubeClientSet.CoreV1().Services(svc.Namespace).Create(svc)
 		if err != nil {
