@@ -104,3 +104,11 @@ rules:
       - "get"
       - "list"
       - "watch"
+
+  # Serving resources and statuses we care about.
+  - apiGroups:
+      - "serving.knative.dev"
+    resources:
+      - "services"
+      - "services/status"
+    verbs: *everything
