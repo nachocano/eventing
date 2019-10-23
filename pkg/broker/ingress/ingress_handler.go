@@ -80,12 +80,12 @@ func (h *Handler) serveHTTP(ctx context.Context, event cloudevents.Event, resp *
 		eventSource: event.Source(),
 	}
 
-	send := h.decrementTTL(&event)
-	if !send {
-		// Record the event count.
-		h.Reporter.ReportEventCount(reporterArgs, http.StatusBadRequest)
-		return nil
-	}
+	//send := h.decrementTTL(&event)
+	//if !send {
+	//	// Record the event count.
+	//	h.Reporter.ReportEventCount(reporterArgs, http.StatusBadRequest)
+	//	return nil
+	//}
 
 	start := time.Now()
 	sendingCTX := utils.ContextFrom(tctx, h.ChannelURI)

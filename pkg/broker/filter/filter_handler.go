@@ -172,17 +172,17 @@ func (r *Handler) serveHTTP(ctx context.Context, event cloudevents.Event, resp *
 
 	// Remove the TTL attribute that is used by the Broker.
 	originalV3 := event.Context.AsV03()
-	ttl, ttlKey := broker.GetTTL(event.Context)
-	if ttl == nil {
-		// Only messages sent by the Broker should be here. If the attribute isn't here, then the
-		// event wasn't sent by the Broker, so we can drop it.
-		r.logger.Warn("No TTL seen, dropping", zap.Any("triggerRef", triggerRef), zap.Any("event", event))
-		// This doesn't return an error because normally this function is called by a Channel, which
-		// will retry all non-2XX responses. If we return an error from this function, then the
-		// framework returns a 500 to the caller, so the Channel would send this repeatedly.
-		return nil
-	}
-	delete(originalV3.Extensions, ttlKey)
+	//ttl, ttlKey := broker.GetTTL(event.Context)
+	//if ttl == nil {
+	//	// Only messages sent by the Broker should be here. If the attribute isn't here, then the
+	//	// event wasn't sent by the Broker, so we can drop it.
+	//	r.logger.Warn("No TTL seen, dropping", zap.Any("triggerRef", triggerRef), zap.Any("event", event))
+	//	// This doesn't return an error because normally this function is called by a Channel, which
+	//	// will retry all non-2XX responses. If we return an error from this function, then the
+	//	// framework returns a 500 to the caller, so the Channel would send this repeatedly.
+	//	return nil
+	//}
+	//delete(originalV3.Extensions, ttlKey)
 	event.Context = originalV3
 
 	r.logger.Debug("Received message", zap.Any("triggerRef", triggerRef))
@@ -199,10 +199,10 @@ func (r *Handler) serveHTTP(ctx context.Context, event cloudevents.Event, resp *
 	}
 
 	// Reattach the TTL (with the same value) to the response event before sending it to the Broker.
-	responseEvent.Context, err = broker.SetTTL(responseEvent.Context, ttl)
-	if err != nil {
-		return err
-	}
+	//responseEvent.Context, err = broker.SetTTL(responseEvent.Context, ttl)
+	//if err != nil {
+	//	return err
+	//}
 	resp.Event = responseEvent
 	resp.Context = &cloudevents.HTTPTransportResponseContext{
 		Header: utils.PassThroughHeaders(tctx.Header),
