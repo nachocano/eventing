@@ -128,7 +128,7 @@ func NewHttpLoadGeneratorFactory(sinkUrl string, minWorkers uint64) LoadGenerato
 						loadGen.failedCh <- common.EventTimestamp{EventId: id, At: t}
 						// loadGen.errorCh <- common.EventTimestamp{EventId: id, At: t}
 					} else if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-						logging.FromContext(context.Background()).Info(fmt.Sprintf("StatusCode %d", response.StatusCode))
+						logging.FromContext(context.Background()).Info(fmt.Sprintf("StatusCode %d, Status %s", response.StatusCode, response.Status))
 						loadGen.failedCh <- common.EventTimestamp{EventId: id, At: t}
 					} else {
 						loadGen.acceptedCh <- common.EventTimestamp{EventId: id, At: t}
