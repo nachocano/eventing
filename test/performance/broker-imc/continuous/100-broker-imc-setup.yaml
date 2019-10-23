@@ -54,6 +54,8 @@ kind: Broker
 metadata:
   name: imc
   namespace: default
+  annotations:
+    knative.dev/resource: service
 spec:
   channelTemplateSpec:
     apiVersion: messaging.knative.dev/v1alpha1
