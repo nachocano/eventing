@@ -1247,7 +1247,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:c8e0ec560560e16616821b3999e905e6b9085c832b5b57216905711e63679d19"
+  digest = "1:1bdfa75253d5b458503b348061b839f5cab0772088021f997bf06e5b2a862b18"
   name = "knative.dev/pkg"
   packages = [
     "apis",
@@ -1260,7 +1260,6 @@
     "apis/istio/authentication/v1alpha1",
     "apis/istio/common/v1alpha1",
     "apis/istio/v1alpha3",
-    "apis/v1alpha1",
     "changeset",
     "client/clientset/versioned",
     "client/clientset/versioned/fake",
@@ -1347,18 +1346,18 @@
     "webhook/resourcesemantics",
   ]
   pruneopts = "T"
-  revision = "d4ce00139499bd3ea11cdb18ef20a41bdb248245"
+  revision = "f0da42d38790cc08b4b70ac065a7cee44b8cf659"
 
 [[projects]]
   branch = "master"
-  digest = "1:5299d75a2b08a91c54ffb8b76afe21eb5f1ecf7bc4d67b859fc081f9415452bc"
+  digest = "1:2cd00bc33160e185bcfea41d6fddcc345145cd930c02876d878481cd3d00864d"
   name = "knative.dev/test-infra"
   packages = [
     "scripts",
     "tools/dep-collector",
   ]
   pruneopts = "UT"
-  revision = "6c8da588aaa3d2bff76a9c37fd6ac5c9a6c02c09"
+  revision = "a6a34418ff337bec6e3191d4497d0e0936ebb44d"
 
 [[projects]]
   digest = "1:8730e0150dfb2b7e173890c8b9868e7a273082ef8e39f4940e3506a481cf895c"
@@ -1402,6 +1401,7 @@
     "google.golang.org/grpc/codes",
     "google.golang.org/grpc/status",
     "k8s.io/api/apps/v1",
+    "k8s.io/api/authorization/v1",
     "k8s.io/api/core/v1",
     "k8s.io/api/rbac/v1",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
@@ -1458,7 +1458,6 @@
     "knative.dev/pkg/apis/duck/v1",
     "knative.dev/pkg/apis/duck/v1alpha1",
     "knative.dev/pkg/apis/duck/v1beta1",
-    "knative.dev/pkg/apis/v1alpha1",
     "knative.dev/pkg/client/clientset/versioned/fake",
     "knative.dev/pkg/client/injection/apiextensions/informers/apiextensions/v1beta1/customresourcedefinition",
     "knative.dev/pkg/client/injection/apiextensions/informers/apiextensions/v1beta1/customresourcedefinition/fake",
@@ -1492,6 +1491,7 @@
     "knative.dev/pkg/metrics/metricskey",
     "knative.dev/pkg/metrics/metricstest",
     "knative.dev/pkg/metrics/testing",
+    "knative.dev/pkg/profiling",
     "knative.dev/pkg/reconciler/testing",
     "knative.dev/pkg/resolver",
     "knative.dev/pkg/signals",
