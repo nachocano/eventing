@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,7 +38,7 @@ import (
 	"knative.dev/eventing/pkg/utils"
 	"knative.dev/pkg/apis"
 	duckv1alpha1 "knative.dev/pkg/apis/duck/v1alpha1"
-	apisv1alpha1 "knative.dev/pkg/apis/v1alpha1"
+	duckv1beta1 "knative.dev/pkg/apis/duck/v1beta1"
 	"knative.dev/pkg/configmap"
 	"knative.dev/pkg/controller"
 	"knative.dev/pkg/resolver"
@@ -48,14 +49,14 @@ import (
 )
 
 var (
-	sinkDest = apisv1alpha1.Destination{
+	sinkDest = duckv1beta1.Destination{
 		Ref: &corev1.ObjectReference{
 			Name:       sinkName,
 			Kind:       "Channel",
 			APIVersion: "messaging.knative.dev/v1alpha1",
 		},
 	}
-	brokerDest = apisv1alpha1.Destination{
+	brokerDest = duckv1beta1.Destination{
 		Ref: &corev1.ObjectReference{
 			Name:       sinkName,
 			Kind:       "Broker",
@@ -115,6 +116,57 @@ func TestReconcile(t *testing.T) {
 					WithApiServerSourceSinkNotFound,
 				),
 			}},
+		}, {
+			Name: "not enough permissions",
+			Objects: []runtime.Object{
+				NewApiServerSource(sourceName, testNS,
+					WithApiServerSourceSpec(sourcesv1alpha1.ApiServerSourceSpec{
+						Resources: []sourcesv1alpha1.ApiServerResource{
+							{
+								APIVersion: "",
+								Kind:       "Namespace",
+							},
+						},
+						Sink: &sinkDest,
+					}),
+					WithApiServerSourceUID(sourceUID),
+					WithApiServerSourceObjectMetaGeneration(generation),
+				),
+				NewChannel(sinkName, testNS,
+					WithInitChannelConditions,
+					WithChannelAddress(sinkDNS),
+				),
+				makeAvailableReceiveAdapter(),
+			},
+			Key: testNS + "/" + sourceName,
+			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
+				Object: NewApiServerSource(sourceName, testNS,
+					WithApiServerSourceSpec(sourcesv1alpha1.ApiServerSourceSpec{
+						Resources: []sourcesv1alpha1.ApiServerResource{
+							{
+								APIVersion: "",
+								Kind:       "Namespace",
+							},
+						},
+						Sink: &sinkDest,
+					}),
+					WithApiServerSourceUID(sourceUID),
+					WithApiServerSourceObjectMetaGeneration(generation),
+					// Status Update:
+					WithInitApiServerSourceConditions,
+					WithApiServerSourceStatusObservedGeneration(generation),
+					WithApiServerSourceSink(sinkURI),
+					WithApiServerSourceNoSufficientPermissions,
+				),
+			}},
+			WantCreates: []runtime.Object{
+				makeSubjectAccessReview("namespaces", "get", "default"),
+				makeSubjectAccessReview("namespaces", "list", "default"),
+				makeSubjectAccessReview("namespaces", "watch", "default"),
+			},
+			WantErr:                 true,
+			WithReactors:            []clientgotesting.ReactionFunc{subjectAccessReviewCreateReactor(false)},
+			SkipNamespaceValidation: true, // SubjectAccessReview objects are cluster-scoped.
 		},
 		{
 			Name: "valid",
@@ -160,10 +212,18 @@ func TestReconcile(t *testing.T) {
 					WithInitApiServerSourceConditions,
 					WithApiServerSourceDeployed,
 					WithApiServerSourceSink(sinkURI),
+					WithApiServerSourceSufficientPermissions,
 					WithApiServerSourceEventTypes,
 					WithApiServerSourceStatusObservedGeneration(generation),
 				),
 			}},
+			WantCreates: []runtime.Object{
+				makeSubjectAccessReview("namespaces", "get", "default"),
+				makeSubjectAccessReview("namespaces", "list", "default"),
+				makeSubjectAccessReview("namespaces", "watch", "default"),
+			},
+			WithReactors:            []clientgotesting.ReactionFunc{subjectAccessReviewCreateReactor(true)},
+			SkipNamespaceValidation: true, // SubjectAccessReview objects are cluster-scoped.
 		},
 		{
 			Name: "valid with deprecated sink fields",
@@ -176,7 +236,7 @@ func TestReconcile(t *testing.T) {
 								Kind:       "Namespace",
 							},
 						},
-						Sink: &apisv1alpha1.Destination{
+						Sink: &duckv1beta1.Destination{
 							DeprecatedAPIVersion: sinkDest.Ref.APIVersion,
 							DeprecatedKind:       sinkDest.Ref.Kind,
 							DeprecatedName:       sinkDest.Ref.Name,
@@ -205,7 +265,7 @@ func TestReconcile(t *testing.T) {
 								Kind:       "Namespace",
 							},
 						},
-						Sink: &apisv1alpha1.Destination{
+						Sink: &duckv1beta1.Destination{
 							DeprecatedAPIVersion: sinkDest.Ref.APIVersion,
 							DeprecatedKind:       sinkDest.Ref.Kind,
 							DeprecatedName:       sinkDest.Ref.Name,
@@ -217,10 +277,18 @@ func TestReconcile(t *testing.T) {
 					WithInitApiServerSourceConditions,
 					WithApiServerSourceDeployed,
 					WithApiServerSourceSinkDepRef(sinkURI),
+					WithApiServerSourceSufficientPermissions,
 					WithApiServerSourceEventTypes,
 					WithApiServerSourceStatusObservedGeneration(generation),
 				),
 			}},
+			WantCreates: []runtime.Object{
+				makeSubjectAccessReview("namespaces", "get", "default"),
+				makeSubjectAccessReview("namespaces", "list", "default"),
+				makeSubjectAccessReview("namespaces", "watch", "default"),
+			},
+			WithReactors:            []clientgotesting.ReactionFunc{subjectAccessReviewCreateReactor(true)},
+			SkipNamespaceValidation: true, // SubjectAccessReview objects are cluster-scoped.
 		},
 		{
 			Name: "valid with relative uri reference",
@@ -233,7 +301,7 @@ func TestReconcile(t *testing.T) {
 								Kind:       "Namespace",
 							},
 						},
-						Sink: &apisv1alpha1.Destination{
+						Sink: &duckv1beta1.Destination{
 							Ref: sinkDest.Ref,
 							URI: &apis.URL{Path: sinkURIReference},
 						},
@@ -261,7 +329,7 @@ func TestReconcile(t *testing.T) {
 								Kind:       "Namespace",
 							},
 						},
-						Sink: &apisv1alpha1.Destination{
+						Sink: &duckv1beta1.Destination{
 							Ref: sinkDest.Ref,
 							URI: &apis.URL{Path: sinkURIReference},
 						},
@@ -272,10 +340,18 @@ func TestReconcile(t *testing.T) {
 					WithInitApiServerSourceConditions,
 					WithApiServerSourceDeployed,
 					WithApiServerSourceSink(sinkTargetURI),
+					WithApiServerSourceSufficientPermissions,
 					WithApiServerSourceEventTypes,
 					WithApiServerSourceStatusObservedGeneration(generation),
 				),
 			}},
+			WantCreates: []runtime.Object{
+				makeSubjectAccessReview("namespaces", "get", "default"),
+				makeSubjectAccessReview("namespaces", "list", "default"),
+				makeSubjectAccessReview("namespaces", "watch", "default"),
+			},
+			WithReactors:            []clientgotesting.ReactionFunc{subjectAccessReviewCreateReactor(true)},
+			SkipNamespaceValidation: true, // SubjectAccessReview objects are cluster-scoped.
 		},
 		{
 			Name: "deployment update due to env",
@@ -320,6 +396,7 @@ func TestReconcile(t *testing.T) {
 					// Status Update:
 					WithInitApiServerSourceConditions,
 					WithApiServerSourceSink(sinkURI),
+					WithApiServerSourceSufficientPermissions,
 					WithApiServerSourceEventTypes,
 					WithApiServerSourceDeploymentUnavailable,
 					WithApiServerSourceStatusObservedGeneration(generation),
@@ -328,6 +405,13 @@ func TestReconcile(t *testing.T) {
 			WantUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: makeReceiveAdapter(),
 			}},
+			WantCreates: []runtime.Object{
+				makeSubjectAccessReview("namespaces", "get", "default"),
+				makeSubjectAccessReview("namespaces", "list", "default"),
+				makeSubjectAccessReview("namespaces", "watch", "default"),
+			},
+			WithReactors:            []clientgotesting.ReactionFunc{subjectAccessReviewCreateReactor(true)},
+			SkipNamespaceValidation: true, // SubjectAccessReview objects are cluster-scoped.
 		},
 		{
 			Name: "deployment update due to service account",
@@ -375,6 +459,7 @@ func TestReconcile(t *testing.T) {
 					WithInitApiServerSourceConditions,
 					WithApiServerSourceDeploymentUnavailable,
 					WithApiServerSourceSink(sinkURI),
+					WithApiServerSourceSufficientPermissions,
 					WithApiServerSourceEventTypes,
 					WithApiServerSourceStatusObservedGeneration(generation),
 				),
@@ -382,6 +467,13 @@ func TestReconcile(t *testing.T) {
 			WantUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: makeReceiveAdapterWithDifferentServiceAccount("malin"),
 			}},
+			WantCreates: []runtime.Object{
+				makeSubjectAccessReview("namespaces", "get", "malin"),
+				makeSubjectAccessReview("namespaces", "list", "malin"),
+				makeSubjectAccessReview("namespaces", "watch", "malin"),
+			},
+			WithReactors:            []clientgotesting.ReactionFunc{subjectAccessReviewCreateReactor(true)},
+			SkipNamespaceValidation: true, // SubjectAccessReview objects are cluster-scoped.
 		},
 		{
 			Name: "deployment update due to container count",
@@ -427,6 +519,7 @@ func TestReconcile(t *testing.T) {
 					WithInitApiServerSourceConditions,
 					WithApiServerSourceDeploymentUnavailable,
 					WithApiServerSourceSink(sinkURI),
+					WithApiServerSourceSufficientPermissions,
 					WithApiServerSourceEventTypes,
 					WithApiServerSourceStatusObservedGeneration(generation),
 				),
@@ -434,6 +527,13 @@ func TestReconcile(t *testing.T) {
 			WantUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: makeReceiveAdapter(),
 			}},
+			WantCreates: []runtime.Object{
+				makeSubjectAccessReview("namespaces", "get", "default"),
+				makeSubjectAccessReview("namespaces", "list", "default"),
+				makeSubjectAccessReview("namespaces", "watch", "default"),
+			},
+			WithReactors:            []clientgotesting.ReactionFunc{subjectAccessReviewCreateReactor(true)},
+			SkipNamespaceValidation: true, // SubjectAccessReview objects are cluster-scoped.
 		},
 		{
 			Name: "valid with event types to delete",
@@ -480,6 +580,7 @@ func TestReconcile(t *testing.T) {
 					WithInitApiServerSourceConditions,
 					WithApiServerSourceDeployed,
 					WithApiServerSourceSink(sinkURI),
+					WithApiServerSourceSufficientPermissions,
 					WithApiServerSourceEventTypes,
 					WithApiServerSourceStatusObservedGeneration(generation),
 				),
@@ -487,6 +588,13 @@ func TestReconcile(t *testing.T) {
 			WantDeletes: []clientgotesting.DeleteActionImpl{
 				{Name: "name-1"},
 			},
+			WantCreates: []runtime.Object{
+				makeSubjectAccessReview("namespaces", "get", "default"),
+				makeSubjectAccessReview("namespaces", "list", "default"),
+				makeSubjectAccessReview("namespaces", "watch", "default"),
+			},
+			WithReactors:            []clientgotesting.ReactionFunc{subjectAccessReviewCreateReactor(true)},
+			SkipNamespaceValidation: true, // SubjectAccessReview objects are cluster-scoped.
 		},
 		{
 			Name: "valid with broker sink",
@@ -532,6 +640,7 @@ func TestReconcile(t *testing.T) {
 					WithInitApiServerSourceConditions,
 					WithApiServerSourceDeployed,
 					WithApiServerSourceSink(sinkURI),
+					WithApiServerSourceSufficientPermissions,
 					WithApiServerSourceEventTypes,
 					WithApiServerSourceStatusObservedGeneration(generation),
 				),
@@ -543,7 +652,12 @@ func TestReconcile(t *testing.T) {
 				makeEventType(sourcesv1alpha1.ApiServerSourceAddRefEventType),
 				makeEventType(sourcesv1alpha1.ApiServerSourceDeleteRefEventType),
 				makeEventType(sourcesv1alpha1.ApiServerSourceUpdateRefEventType),
+				makeSubjectAccessReview("namespaces", "get", "default"),
+				makeSubjectAccessReview("namespaces", "list", "default"),
+				makeSubjectAccessReview("namespaces", "watch", "default"),
 			},
+			WithReactors:            []clientgotesting.ReactionFunc{subjectAccessReviewCreateReactor(true)},
+			SkipNamespaceValidation: true, // SubjectAccessReview objects are cluster-scoped.
 		},
 		{
 			Name: "valid with broker sink and missing event types",
@@ -592,6 +706,7 @@ func TestReconcile(t *testing.T) {
 					WithInitApiServerSourceConditions,
 					WithApiServerSourceDeployed,
 					WithApiServerSourceSink(sinkURI),
+					WithApiServerSourceSufficientPermissions,
 					WithApiServerSourceEventTypes,
 					WithApiServerSourceStatusObservedGeneration(generation),
 				),
@@ -600,7 +715,12 @@ func TestReconcile(t *testing.T) {
 				makeEventType(sourcesv1alpha1.ApiServerSourceAddRefEventType),
 				makeEventType(sourcesv1alpha1.ApiServerSourceDeleteRefEventType),
 				makeEventType(sourcesv1alpha1.ApiServerSourceUpdateRefEventType),
+				makeSubjectAccessReview("namespaces", "get", "default"),
+				makeSubjectAccessReview("namespaces", "list", "default"),
+				makeSubjectAccessReview("namespaces", "watch", "default"),
 			},
+			WithReactors:            []clientgotesting.ReactionFunc{subjectAccessReviewCreateReactor(true)},
+			SkipNamespaceValidation: true, // SubjectAccessReview objects are cluster-scoped.
 		},
 		{
 			Name: "valid with broker sink and event types to delete",
@@ -652,6 +772,7 @@ func TestReconcile(t *testing.T) {
 					WithInitApiServerSourceConditions,
 					WithApiServerSourceDeployed,
 					WithApiServerSourceSink(sinkURI),
+					WithApiServerSourceSufficientPermissions,
 					WithApiServerSourceEventTypes,
 					WithApiServerSourceStatusObservedGeneration(generation),
 				),
@@ -666,7 +787,12 @@ func TestReconcile(t *testing.T) {
 				makeEventType(sourcesv1alpha1.ApiServerSourceAddRefEventType),
 				makeEventType(sourcesv1alpha1.ApiServerSourceDeleteRefEventType),
 				makeEventType(sourcesv1alpha1.ApiServerSourceUpdateRefEventType),
+				makeSubjectAccessReview("namespaces", "get", "default"),
+				makeSubjectAccessReview("namespaces", "list", "default"),
+				makeSubjectAccessReview("namespaces", "watch", "default"),
 			},
+			WithReactors:            []clientgotesting.ReactionFunc{subjectAccessReviewCreateReactor(true)},
+			SkipNamespaceValidation: true, // SubjectAccessReview objects are cluster-scoped.
 		},
 	}
 
@@ -799,6 +925,20 @@ func makeEventType(eventType string) *v1alpha1.EventType {
 	}
 }
 
+func makeSubjectAccessReview(resource, verb, sa string) *authorizationv1.SubjectAccessReview {
+	return &authorizationv1.SubjectAccessReview{
+		Spec: authorizationv1.SubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
+				Namespace: testNS,
+				Verb:      verb,
+				Group:     "",
+				Resource:  resource,
+			},
+			User: "system:serviceaccount:" + testNS + ":" + sa,
+		},
+	}
+}
+
 func makeApiServerSource() *sourcesv1alpha1.ApiServerSource {
 	return NewApiServerSource(sourceName, testNS,
 		WithApiServerSourceSpec(sourcesv1alpha1.ApiServerSourceSpec{
@@ -812,4 +952,15 @@ func makeApiServerSource() *sourcesv1alpha1.ApiServerSource {
 		}),
 		WithApiServerSourceUID(sourceUID),
 	)
+}
+
+func subjectAccessReviewCreateReactor(allowed bool) clientgotesting.ReactionFunc {
+	return func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+		if action.GetVerb() == "create" && action.GetResource().Resource == "subjectaccessreviews" {
+			ret := action.(clientgotesting.CreateAction).GetObject().DeepCopyObject().(*authorizationv1.SubjectAccessReview)
+			ret.Status.Allowed = allowed
+			return true, ret, nil
+		}
+		return false, nil, nil
+	}
 }
