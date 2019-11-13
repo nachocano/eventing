@@ -173,7 +173,9 @@ func TestAllCases(t *testing.T) {
 					reconciletesting.WithSequenceSteps([]duckv1beta1.Destination{createDestination(0)}),
 					reconciletesting.WithSequenceChannelsNotReady("ChannelsNotReady", "Channels are not ready yet, or there are none"),
 					reconciletesting.WithSequenceAddressableNotReady("emptyHostname", "hostname is the empty string"),
+					reconciletesting.WithSequenceDeprecatedStatus(),
 					reconciletesting.WithSequenceSubscriptionsNotReady("SubscriptionsNotReady", "Subscriptions are not ready yet, or there are none"),
+
 					reconciletesting.WithSequenceChannelStatuses([]v1alpha1.SequenceChannelStatus{
 						{
 							Channel: corev1.ObjectReference{
@@ -193,7 +195,7 @@ func TestAllCases(t *testing.T) {
 					reconciletesting.WithSequenceSubscriptionStatuses([]v1alpha1.SequenceSubscriptionStatus{
 						{
 							Subscription: corev1.ObjectReference{
-								APIVersion: "eventing.knative.dev/v1alpha1",
+								APIVersion: "messaging.knative.dev/v1alpha1",
 								Kind:       "Subscription",
 								Name:       resources.SequenceSubscriptionName(sequenceName, 0),
 								Namespace:  testNS,
@@ -224,6 +226,7 @@ func TestAllCases(t *testing.T) {
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: reconciletesting.NewSequence(sequenceName, testNS,
 					reconciletesting.WithInitSequenceConditions,
+					reconciletesting.WithSequenceDeprecatedStatus(),
 					reconciletesting.WithSequenceChannelTemplateSpec(imc),
 					reconciletesting.WithSequenceSteps([]duckv1beta1.Destination{createDestination(0)}),
 					reconciletesting.WithSequenceReply(createReplyChannel(replyChannelName)),
@@ -249,7 +252,7 @@ func TestAllCases(t *testing.T) {
 					reconciletesting.WithSequenceSubscriptionStatuses([]v1alpha1.SequenceSubscriptionStatus{
 						{
 							Subscription: corev1.ObjectReference{
-								APIVersion: "eventing.knative.dev/v1alpha1",
+								APIVersion: "messaging.knative.dev/v1alpha1",
 								Kind:       "Subscription",
 								Name:       resources.SequenceSubscriptionName(sequenceName, 0),
 								Namespace:  testNS,
@@ -285,6 +288,7 @@ func TestAllCases(t *testing.T) {
 					reconciletesting.WithSequenceReply(createDeprecatedReplyChannel(replyChannelName)),
 					reconciletesting.WithSequenceAddressableNotReady("emptyHostname", "hostname is the empty string"),
 					reconciletesting.WithSequenceDeprecatedReplyStatus(),
+					reconciletesting.WithSequenceDeprecatedStatus(),
 					reconciletesting.WithSequenceChannelsNotReady("ChannelsNotReady", "Channels are not ready yet, or there are none"),
 					reconciletesting.WithSequenceSubscriptionsNotReady("SubscriptionsNotReady", "Subscriptions are not ready yet, or there are none"),
 					reconciletesting.WithSequenceChannelStatuses([]v1alpha1.SequenceChannelStatus{
@@ -306,7 +310,7 @@ func TestAllCases(t *testing.T) {
 					reconciletesting.WithSequenceSubscriptionStatuses([]v1alpha1.SequenceSubscriptionStatus{
 						{
 							Subscription: corev1.ObjectReference{
-								APIVersion: "eventing.knative.dev/v1alpha1",
+								APIVersion: "messaging.knative.dev/v1alpha1",
 								Kind:       "Subscription",
 								Name:       resources.SequenceSubscriptionName(sequenceName, 0),
 								Namespace:  testNS,
@@ -345,6 +349,7 @@ func TestAllCases(t *testing.T) {
 						createDestination(1),
 						createDestination(2),
 					}),
+					reconciletesting.WithSequenceDeprecatedStatus(),
 					reconciletesting.WithSequenceChannelsNotReady("ChannelsNotReady", "Channels are not ready yet, or there are none"),
 					reconciletesting.WithSequenceAddressableNotReady("emptyHostname", "hostname is the empty string"),
 					reconciletesting.WithSequenceSubscriptionsNotReady("SubscriptionsNotReady", "Subscriptions are not ready yet, or there are none"),
@@ -395,7 +400,7 @@ func TestAllCases(t *testing.T) {
 					reconciletesting.WithSequenceSubscriptionStatuses([]v1alpha1.SequenceSubscriptionStatus{
 						{
 							Subscription: corev1.ObjectReference{
-								APIVersion: "eventing.knative.dev/v1alpha1",
+								APIVersion: "messaging.knative.dev/v1alpha1",
 								Kind:       "Subscription",
 								Name:       resources.SequenceSubscriptionName(sequenceName, 0),
 								Namespace:  testNS,
@@ -403,7 +408,7 @@ func TestAllCases(t *testing.T) {
 						},
 						{
 							Subscription: corev1.ObjectReference{
-								APIVersion: "eventing.knative.dev/v1alpha1",
+								APIVersion: "messaging.knative.dev/v1alpha1",
 								Kind:       "Subscription",
 								Name:       resources.SequenceSubscriptionName(sequenceName, 1),
 								Namespace:  testNS,
@@ -411,7 +416,7 @@ func TestAllCases(t *testing.T) {
 						},
 						{
 							Subscription: corev1.ObjectReference{
-								APIVersion: "eventing.knative.dev/v1alpha1",
+								APIVersion: "messaging.knative.dev/v1alpha1",
 								Kind:       "Subscription",
 								Name:       resources.SequenceSubscriptionName(sequenceName, 2),
 								Namespace:  testNS,
@@ -461,6 +466,7 @@ func TestAllCases(t *testing.T) {
 						createDestination(1),
 						createDestination(2),
 					}),
+					reconciletesting.WithSequenceDeprecatedStatus(),
 					reconciletesting.WithSequenceChannelsNotReady("ChannelsNotReady", "Channels are not ready yet, or there are none"),
 					reconciletesting.WithSequenceAddressableNotReady("emptyHostname", "hostname is the empty string"),
 					reconciletesting.WithSequenceSubscriptionsNotReady("SubscriptionsNotReady", "Subscriptions are not ready yet, or there are none"),
@@ -511,7 +517,7 @@ func TestAllCases(t *testing.T) {
 					reconciletesting.WithSequenceSubscriptionStatuses([]v1alpha1.SequenceSubscriptionStatus{
 						{
 							Subscription: corev1.ObjectReference{
-								APIVersion: "eventing.knative.dev/v1alpha1",
+								APIVersion: "messaging.knative.dev/v1alpha1",
 								Kind:       "Subscription",
 								Name:       resources.SequenceSubscriptionName(sequenceName, 0),
 								Namespace:  testNS,
@@ -519,7 +525,7 @@ func TestAllCases(t *testing.T) {
 						},
 						{
 							Subscription: corev1.ObjectReference{
-								APIVersion: "eventing.knative.dev/v1alpha1",
+								APIVersion: "messaging.knative.dev/v1alpha1",
 								Kind:       "Subscription",
 								Name:       resources.SequenceSubscriptionName(sequenceName, 1),
 								Namespace:  testNS,
@@ -527,7 +533,7 @@ func TestAllCases(t *testing.T) {
 						},
 						{
 							Subscription: corev1.ObjectReference{
-								APIVersion: "eventing.knative.dev/v1alpha1",
+								APIVersion: "messaging.knative.dev/v1alpha1",
 								Kind:       "Subscription",
 								Name:       resources.SequenceSubscriptionName(sequenceName, 2),
 								Namespace:  testNS,
@@ -566,6 +572,7 @@ func TestAllCases(t *testing.T) {
 					reconciletesting.WithInitSequenceConditions,
 					reconciletesting.WithSequenceChannelTemplateSpec(imc),
 					reconciletesting.WithSequenceSteps([]duckv1beta1.Destination{createDestination(1)}),
+					reconciletesting.WithSequenceDeprecatedStatus(),
 					reconciletesting.WithSequenceChannelsNotReady("ChannelsNotReady", "Channels are not ready yet, or there are none"),
 					reconciletesting.WithSequenceAddressableNotReady("emptyHostname", "hostname is the empty string"),
 					reconciletesting.WithSequenceSubscriptionsNotReady("SubscriptionsNotReady", "Subscriptions are not ready yet, or there are none"),
@@ -588,7 +595,7 @@ func TestAllCases(t *testing.T) {
 					reconciletesting.WithSequenceSubscriptionStatuses([]v1alpha1.SequenceSubscriptionStatus{
 						{
 							Subscription: corev1.ObjectReference{
-								APIVersion: "eventing.knative.dev/v1alpha1",
+								APIVersion: "messaging.knative.dev/v1alpha1",
 								Kind:       "Subscription",
 								Name:       resources.SequenceSubscriptionName(sequenceName, 0),
 								Namespace:  testNS,

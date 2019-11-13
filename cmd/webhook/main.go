@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	eventingduckv1alpha1 "knative.dev/eventing/pkg/apis/duck/v1alpha1"
 	eventingv1alpha1 "knative.dev/eventing/pkg/apis/eventing/v1alpha1"
+	flowsv1alpha1 "knative.dev/eventing/pkg/apis/flows/v1alpha1"
 	messagingv1alpha1 "knative.dev/eventing/pkg/apis/messaging/v1alpha1"
 	sourcesv1alpha1 "knative.dev/eventing/pkg/apis/sources/v1alpha1"
 	"knative.dev/eventing/pkg/defaultchannel"
@@ -31,8 +32,10 @@ import (
 	"knative.dev/pkg/injection/sharedmain"
 	"knative.dev/pkg/logging"
 	"knative.dev/pkg/signals"
+	tracingconfig "knative.dev/pkg/tracing/config"
 	"knative.dev/pkg/webhook"
 	"knative.dev/pkg/webhook/certificates"
+	"knative.dev/pkg/webhook/configmaps"
 	"knative.dev/pkg/webhook/resourcesemantics"
 )
 
@@ -66,7 +69,7 @@ func NewResourceAdmissionController(ctx context.Context, cmw configmap.Watcher) 
 
 		// The resources to validate and default.
 		map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
-			// For group eventing.knative.dev,
+			// For group eventing.knative.dev.
 			eventingv1alpha1.SchemeGroupVersion.WithKind("Broker"):    &eventingv1alpha1.Broker{},
 			eventingv1alpha1.SchemeGroupVersion.WithKind("Trigger"):   &eventingv1alpha1.Trigger{},
 			eventingv1alpha1.SchemeGroupVersion.WithKind("EventType"): &eventingv1alpha1.EventType{},
@@ -78,10 +81,14 @@ func NewResourceAdmissionController(ctx context.Context, cmw configmap.Watcher) 
 			messagingv1alpha1.SchemeGroupVersion.WithKind("Channel"):         &messagingv1alpha1.Channel{},
 			messagingv1alpha1.SchemeGroupVersion.WithKind("Subscription"):    &messagingv1alpha1.Subscription{},
 
-			// For group sources.eventing.knative.dev
+			// For group sources.eventing.knative.dev.
 			sourcesv1alpha1.SchemeGroupVersion.WithKind("ApiServerSource"): &sourcesv1alpha1.ApiServerSource{},
 			sourcesv1alpha1.SchemeGroupVersion.WithKind("ContainerSource"): &sourcesv1alpha1.ContainerSource{},
 			sourcesv1alpha1.SchemeGroupVersion.WithKind("CronJobSource"):   &sourcesv1alpha1.CronJobSource{},
+
+			// For group flows.knative.dev
+			flowsv1alpha1.SchemeGroupVersion.WithKind("Parallel"): &flowsv1alpha1.Parallel{},
+			flowsv1alpha1.SchemeGroupVersion.WithKind("Sequence"): &flowsv1alpha1.Sequence{},
 		},
 
 		// A function that infuses the context passed to Validate/SetDefaults with custom metadata.
@@ -89,6 +96,24 @@ func NewResourceAdmissionController(ctx context.Context, cmw configmap.Watcher) 
 
 		// Whether to disallow unknown fields.
 		true,
+	)
+}
+
+func NewConfigValidationController(ctx context.Context, cmw configmap.Watcher) *controller.Impl {
+	return configmaps.NewAdmissionController(ctx,
+
+		// Name of the configmap webhook.
+		"config.webhook.eventing.knative.dev",
+
+		// The path on which to serve the webhook.
+		"/config-validation",
+
+		// The configmaps to validate.
+		configmap.Constructors{
+			tracingconfig.ConfigName: tracingconfig.NewTracingConfigFromConfigMap,
+			// metrics.ConfigMapName():   metricsconfig.NewObservabilityConfigFromConfigMap,
+			logging.ConfigMapName(): logging.NewConfigFromConfigMap,
+		},
 	)
 }
 
@@ -103,6 +128,6 @@ func main() {
 	sharedmain.MainWithContext(ctx, logconfig.WebhookName(),
 		certificates.NewController,
 		NewResourceAdmissionController,
-		// TODO(mattmoor): Support config validation in eventing.
+		NewConfigValidationController,
 	)
 }
