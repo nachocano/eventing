@@ -68,8 +68,8 @@ Trigger._
 
 #### Spec
 
-| Field           | Type        | Description                                                                                                     | Constraints                                      |
-| --------------- | ----------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Field           | Type        | Description                                                                                                     | Constraints                                  |
+| --------------- | ----------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | channelTemplate | ChannelSpec | The template used to create Channels internal to the Broker. Defaults to the default Channel for the namespace. | Only Channel and Arguments may be specified. |
 
 #### Status
@@ -155,11 +155,11 @@ channel._
 
 #### Spec
 
-| Field                  | Type                    | Description                                                                       | Constraints        |
-| ---------------------- | ----------------------- | --------------------------------------------------------------------------------- | ------------------ |
-| channel\*              | ObjectRef               | The originating _Subscribable_ for the link.                                      | Must be a Channel. |
-| subscriber<sup>1</sup> | eventing.SubscriberSpec | Optional processing on the event. The result of subscriber will be sent to reply. |                    |
-| reply<sup>1</sup>      | ReplyStrategy           | The continuation for the link.                                                    |                    |
+| Field                  | Type                 | Description                                                                       | Constraints        |
+| ---------------------- | -------------------- | --------------------------------------------------------------------------------- | ------------------ |
+| channel\*              | ObjectRef            | The originating _Subscribable_ for the link.                                      | Must be a Channel. |
+| subscriber<sup>1</sup> | pkg/duck.Destination | Optional processing on the event. The result of subscriber will be sent to reply. |                    |
+| reply<sup>1</sup>      | pkg/duck.Destination | The continuation for the link.                                                    |                    |
 
 \*: Required
 
