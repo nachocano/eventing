@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Knative Authors
+Copyright 2020 The Knative Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"reflect"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -38,6 +41,18 @@ var (
 		},
 	}
 )
+
+func TestApiServerSourceGetGroupVersionKind(t *testing.T) {
+	r := &ApiServerSource{}
+	want := schema.GroupVersionKind{
+		Group:   "sources.knative.dev",
+		Version: "v1alpha1",
+		Kind:    "ApiServerSource",
+	}
+	if got := r.GetGroupVersionKind(); got != want {
+		t.Errorf("got: %v, want: %v", got, want)
+	}
+}
 
 func TestApiServerSourceStatusIsReady(t *testing.T) {
 	tests := []struct {
@@ -217,6 +232,24 @@ func TestApiServerSourceStatusGetCondition(t *testing.T) {
 			Type:   ApiServerConditionReady,
 			Status: corev1.ConditionTrue,
 		},
+	}, {
+		name: "mark sink empty and enough permissions and deployed and event types",
+		s: func() *ApiServerSourceStatus {
+			s := &ApiServerSourceStatus{}
+			s.InitializeConditions()
+			s.MarkSink("")
+			s.MarkSufficientPermissions()
+			s.PropagateDeploymentAvailability(availableDeployment)
+			s.MarkEventTypes()
+			return s
+		}(),
+		condQuery: ApiServerConditionReady,
+		want: &apis.Condition{
+			Type:    ApiServerConditionReady,
+			Status:  corev1.ConditionFalse,
+			Reason:  "SinkEmpty",
+			Message: "Sink has resolved to empty.",
+		},
 	}}
 
 	for _, test := range tests {
@@ -228,5 +261,17 @@ func TestApiServerSourceStatusGetCondition(t *testing.T) {
 				t.Errorf("unexpected condition (-want, +got) = %v", diff)
 			}
 		})
+	}
+}
+
+func TestApiServerSourceGetters(t *testing.T) {
+	r := &ApiServerSource{
+		Spec: ApiServerSourceSpec{
+			ServiceAccountName: "test",
+			Mode:               "test",
+		},
+	}
+	if got, want := r.GetUntypedSpec(), r.Spec; !reflect.DeepEqual(got, want) {
+		t.Errorf("GetUntypedSpec() = %v, want: %v", got, want)
 	}
 }

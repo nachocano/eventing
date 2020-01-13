@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Knative Authors
+Copyright 2020 The Knative Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import (
 // Resource takes an unqualified resource and returns a Group qualified GroupResource
 func TestResource(t *testing.T) {
 	want := schema.GroupResource{
-		Group:    "sources.eventing.knative.dev",
+		Group:    "sources.knative.dev",
 		Resource: "foo",
 	}
 
@@ -42,7 +42,7 @@ func TestResource(t *testing.T) {
 // Kind takes an unqualified resource and returns a Group qualified GroupKind
 func TestKind(t *testing.T) {
 	want := schema.GroupKind{
-		Group: "sources.eventing.knative.dev",
+		Group: "sources.knative.dev",
 		Kind:  "kind",
 	}
 
@@ -60,12 +60,10 @@ func TestKnownTypes(t *testing.T) {
 	types := scheme.KnownTypes(SchemeGroupVersion)
 
 	for _, name := range []string{
-		"CronJobSource",
-		"CronJobSourceList",
-		"ContainerSource",
-		"ContainerSourceList",
 		"ApiServerSource",
 		"ApiServerSourceList",
+		"SinkBinding",
+		"SinkBindingList",
 	} {
 		if _, ok := types[name]; !ok {
 			t.Errorf("Did not find %q as registered type", name)

@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Knative Authors
+Copyright 2020 The Knative Authors
  Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -27,9 +27,9 @@ func TestTypesImplements(t *testing.T) {
 		iface    duck.Implementable
 	}{
 		// CronJobSource
-		{instance: &CronJobSource{}, iface: &duckv1.Conditions{}},
+		{instance: &ApiServerSource{}, iface: &duckv1.Conditions{}},
 		// ContainerSource
-		{instance: &ContainerSource{}, iface: &duckv1.Conditions{}},
+		{instance: &ApiServerSource{}, iface: &duckv1.Conditions{}},
 		// SinkBinding
 		{instance: &SinkBinding{}, iface: &duckv1.Conditions{}},
 		{instance: &SinkBinding{}, iface: &duckv1beta1.Source{}},

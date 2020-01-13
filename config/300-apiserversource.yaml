@@ -32,9 +32,9 @@ metadata:
         { "type": "dev.knative.apiserver.ref.delete" },
         { "type": "dev.knative.apiserver.ref.update" }
       ]
-  name: apiserversources.sources.eventing.knative.dev
+  name: apiserversources.sources.knative.dev
 spec:
-  group: sources.eventing.knative.dev
+  group: sources.knative.dev
   names:
     categories:
     - all
@@ -50,6 +50,12 @@ spec:
     - name: Ready
       type: string
       JSONPath: ".status.conditions[?(@.type==\"Ready\")].status"
+    - name: Reason
+      type: string
+      JSONPath: ".status.conditions[?(@.type=='Ready')].reason"
+    - name: Sink
+      type: string
+      JSONPath: ".status.sinkUri"
     - name: Age
       type: date
       JSONPath: .metadata.creationTimestamp
@@ -119,7 +125,7 @@ spec:
                     description: "If true, emits the managing controller ref. Only supported for mode=Ref. More info: https://kubernetes.io/docs/concepts/workloads/controllers/garbage-collection/"
                   labelSelector:
                     type: object
-                    description: "Label selector restricting this  list of objects to watch by their labels. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/"
+                    description: "Label selector restricting this list of objects to watch by their labels. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/"
                   controllerSelector:
                     type: object
                     description: "Controller selector restricting the list of objects to watch by a controlling owner reference of the specified kind."

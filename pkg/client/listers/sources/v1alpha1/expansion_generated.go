@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Knative Authors
+Copyright 2020 The Knative Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,22 +25,6 @@ type ApiServerSourceListerExpansion interface{}
 // ApiServerSourceNamespaceListerExpansion allows custom methods to be added to
 // ApiServerSourceNamespaceLister.
 type ApiServerSourceNamespaceListerExpansion interface{}
-
-// ContainerSourceListerExpansion allows custom methods to be added to
-// ContainerSourceLister.
-type ContainerSourceListerExpansion interface{}
-
-// ContainerSourceNamespaceListerExpansion allows custom methods to be added to
-// ContainerSourceNamespaceLister.
-type ContainerSourceNamespaceListerExpansion interface{}
-
-// CronJobSourceListerExpansion allows custom methods to be added to
-// CronJobSourceLister.
-type CronJobSourceListerExpansion interface{}
-
-// CronJobSourceNamespaceListerExpansion allows custom methods to be added to
-// CronJobSourceNamespaceLister.
-type CronJobSourceNamespaceListerExpansion interface{}
 
 // SinkBindingListerExpansion allows custom methods to be added to
 // SinkBindingLister.

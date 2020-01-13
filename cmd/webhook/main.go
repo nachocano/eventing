@@ -18,17 +18,19 @@ package main
 
 import (
 	"context"
+	"knative.dev/eventing/pkg/reconciler/sinkbinding"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	eventingduckv1alpha1 "knative.dev/eventing/pkg/apis/duck/v1alpha1"
 	eventingv1alpha1 "knative.dev/eventing/pkg/apis/eventing/v1alpha1"
 	flowsv1alpha1 "knative.dev/eventing/pkg/apis/flows/v1alpha1"
+	legacysourcesv1alpha1 "knative.dev/eventing/pkg/apis/legacysources/v1alpha1"
 	messagingv1alpha1 "knative.dev/eventing/pkg/apis/messaging/v1alpha1"
 	sourcesv1alpha1 "knative.dev/eventing/pkg/apis/sources/v1alpha1"
 	"knative.dev/eventing/pkg/defaultchannel"
 	"knative.dev/eventing/pkg/logconfig"
-	"knative.dev/eventing/pkg/reconciler/sinkbinding"
+	"knative.dev/eventing/pkg/reconciler/legacysinkbinding"
 	"knative.dev/pkg/configmap"
 	"knative.dev/pkg/controller"
 	"knative.dev/pkg/injection/sharedmain"
@@ -57,11 +59,16 @@ var ourTypes = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
 	messagingv1alpha1.SchemeGroupVersion.WithKind("Channel"):         &messagingv1alpha1.Channel{},
 	messagingv1alpha1.SchemeGroupVersion.WithKind("Subscription"):    &messagingv1alpha1.Subscription{},
 
-	// For group sources.eventing.knative.dev.
+	// For group sources.knative.dev.
 	sourcesv1alpha1.SchemeGroupVersion.WithKind("ApiServerSource"): &sourcesv1alpha1.ApiServerSource{},
-	sourcesv1alpha1.SchemeGroupVersion.WithKind("ContainerSource"): &sourcesv1alpha1.ContainerSource{},
 	sourcesv1alpha1.SchemeGroupVersion.WithKind("SinkBinding"):     &sourcesv1alpha1.SinkBinding{},
-	sourcesv1alpha1.SchemeGroupVersion.WithKind("CronJobSource"):   &sourcesv1alpha1.CronJobSource{},
+
+	// For group sources.eventing.knative.dev.
+	// TODO(#2312): Remove this after v0.13.
+	legacysourcesv1alpha1.SchemeGroupVersion.WithKind("ApiServerSource"): &legacysourcesv1alpha1.ApiServerSource{},
+	legacysourcesv1alpha1.SchemeGroupVersion.WithKind("ContainerSource"): &legacysourcesv1alpha1.ContainerSource{},
+	legacysourcesv1alpha1.SchemeGroupVersion.WithKind("SinkBinding"):     &legacysourcesv1alpha1.SinkBinding{},
+	legacysourcesv1alpha1.SchemeGroupVersion.WithKind("CronJobSource"):   &legacysourcesv1alpha1.CronJobSource{},
 
 	// For group flows.knative.dev
 	flowsv1alpha1.SchemeGroupVersion.WithKind("Parallel"): &flowsv1alpha1.Parallel{},
@@ -164,6 +171,26 @@ func NewSinkBindingWebhook(ctx context.Context, cmw configmap.Watcher) *controll
 	)
 }
 
+// TODO(#2312): Remove this after v0.13.
+func NewLegacySinkBindingWebhook(ctx context.Context, cmw configmap.Watcher) *controller.Impl {
+	sbresolver := legacysinkbinding.WithContextFactory(ctx, func(types.NamespacedName) {})
+
+	return psbinding.NewAdmissionController(ctx,
+
+		// Name of the resource webhook.
+		"legacysinkbindings.webhook.sources.knative.dev",
+
+		// The path on which to serve the webhook.
+		"/legacysinkbindings",
+
+		// How to get all the Bindables for configuring the mutating webhook.
+		legacysinkbinding.ListAll,
+
+		// How to setup the context prior to invoking Do/Undo.
+		sbresolver,
+	)
+}
+
 func main() {
 	// Set up a signal context with our webhook options
 	ctx := webhook.WithOptions(signals.NewContext(), webhook.Options{
@@ -181,5 +208,7 @@ func main() {
 
 		// For each binding we have a controller and a binding webhook.
 		sinkbinding.NewController, NewSinkBindingWebhook,
+		// TODO(#2312): Remove this after v0.13.
+		legacysinkbinding.NewController, NewLegacySinkBindingWebhook,
 	)
 }

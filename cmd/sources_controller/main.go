@@ -21,15 +21,18 @@ import (
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
 	"knative.dev/eventing/pkg/reconciler/apiserversource"
-	"knative.dev/eventing/pkg/reconciler/containersource"
-	"knative.dev/eventing/pkg/reconciler/cronjobsource"
+	"knative.dev/eventing/pkg/reconciler/legacyapiserversource"
+	"knative.dev/eventing/pkg/reconciler/legacycontainersource"
+	"knative.dev/eventing/pkg/reconciler/legacycronjobsource"
 	"knative.dev/pkg/injection/sharedmain"
 )
 
 func main() {
 	sharedmain.Main("source_controller",
 		apiserversource.NewController,
-		containersource.NewController,
-		cronjobsource.NewController,
+		// TODO(#2312): Remove this after v0.13.
+		legacyapiserversource.NewController,
+		legacycontainersource.NewController,
+		legacycronjobsource.NewController,
 	)
 }

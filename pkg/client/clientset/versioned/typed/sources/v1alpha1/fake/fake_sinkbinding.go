@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Knative Authors
+Copyright 2020 The Knative Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,9 +34,9 @@ type FakeSinkBindings struct {
 	ns   string
 }
 
-var sinkbindingsResource = schema.GroupVersionResource{Group: "sources.eventing.knative.dev", Version: "v1alpha1", Resource: "sinkbindings"}
+var sinkbindingsResource = schema.GroupVersionResource{Group: "sources.knative.dev", Version: "v1alpha1", Resource: "sinkbindings"}
 
-var sinkbindingsKind = schema.GroupVersionKind{Group: "sources.eventing.knative.dev", Version: "v1alpha1", Kind: "SinkBinding"}
+var sinkbindingsKind = schema.GroupVersionKind{Group: "sources.knative.dev", Version: "v1alpha1", Kind: "SinkBinding"}
 
 // Get takes name of the sinkBinding, and returns the corresponding sinkBinding object, and an error if there is any.
 func (c *FakeSinkBindings) Get(name string, options v1.GetOptions) (result *v1alpha1.SinkBinding, err error) {

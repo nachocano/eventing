@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Knative Authors
+Copyright 2020 The Knative Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,14 +30,6 @@ type FakeSourcesV1alpha1 struct {
 
 func (c *FakeSourcesV1alpha1) ApiServerSources(namespace string) v1alpha1.ApiServerSourceInterface {
 	return &FakeApiServerSources{c, namespace}
-}
-
-func (c *FakeSourcesV1alpha1) ContainerSources(namespace string) v1alpha1.ContainerSourceInterface {
-	return &FakeContainerSources{c, namespace}
-}
-
-func (c *FakeSourcesV1alpha1) CronJobSources(namespace string) v1alpha1.CronJobSourceInterface {
-	return &FakeCronJobSources{c, namespace}
 }
 
 func (c *FakeSourcesV1alpha1) SinkBindings(namespace string) v1alpha1.SinkBindingInterface {
