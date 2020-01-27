@@ -1,20 +1,20 @@
 /*
-Copyright 2019 The Knative Authors
+ * Copyright 2020 The Knative Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package v1alpha1
+package v1beta1
 
 import (
 	"context"
@@ -29,25 +29,9 @@ import (
 )
 
 var (
-	validEmptyFilter         = &TriggerFilter{}
-	validSourceAndTypeFilter = &TriggerFilter{
-		DeprecatedSourceAndType: &TriggerFilterSourceAndType{
-			Type:   "other_type",
-			Source: "other_source",
-		},
-	}
+	validEmptyFilter      = &TriggerFilter{}
 	validAttributesFilter = &TriggerFilter{
-		Attributes: &TriggerFilterAttributes{
-			"type":   "other_type",
-			"source": "other_source",
-		},
-	}
-	invalidFilterHasBoth = &TriggerFilter{
-		DeprecatedSourceAndType: &TriggerFilterSourceAndType{
-			Type:   "other_type",
-			Source: "other_source",
-		},
-		Attributes: &TriggerFilterAttributes{
+		Attributes: TriggerFilterAttributes{
 			"type":   "other_type",
 			"source": "other_source",
 		},
@@ -75,11 +59,6 @@ var (
 	injectionAnnotationPath    = fmt.Sprintf("metadata.annotations[%s]", InjectionAnnotation)
 )
 
-const (
-	validLabelNameMaxCharsNotReached = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	invalidLabelNameMaxCharsReached  = validLabelNameMaxCharsNotReached + "b"
-)
-
 func TestTriggerValidation(t *testing.T) {
 	tests := []struct {
 		name string
@@ -90,50 +69,12 @@ func TestTriggerValidation(t *testing.T) {
 		t:    &Trigger{Spec: TriggerSpec{}},
 		want: func() *apis.FieldError {
 			var errs *apis.FieldError
-			fe := apis.ErrMissingField("spec.broker", "spec.filter")
+			fe := apis.ErrMissingField("spec.broker")
 			errs = errs.Also(fe)
 			fe = apis.ErrGeneric("expected at least one, got none", "spec.subscriber.ref", "spec.subscriber.uri")
 			errs = errs.Also(fe)
 			return errs
 		}(),
-	}, {
-		name: "invalid trigger name",
-		t: &Trigger{
-			ObjectMeta: v1.ObjectMeta{
-				// ups ... name too long
-				Name:      invalidLabelNameMaxCharsReached,
-				Namespace: "dummy",
-			},
-			Spec: TriggerSpec{
-				Broker:     "test_broker",
-				Filter:     validEmptyFilter,
-				Subscriber: validSubscriber,
-			},
-		},
-		want: &apis.FieldError{
-			Message: "must be no more than 63 characters",
-			Paths:   []string{"metadata.name"},
-			Details: "",
-		},
-	}, {
-		name: "invalid broker name",
-		t: &Trigger{
-			ObjectMeta: v1.ObjectMeta{
-				Name:      validLabelNameMaxCharsNotReached,
-				Namespace: "dummy",
-			},
-			Spec: TriggerSpec{
-				// ups ... name too long
-				Broker:     invalidLabelNameMaxCharsReached,
-				Filter:     validEmptyFilter,
-				Subscriber: validSubscriber,
-			},
-		},
-		want: &apis.FieldError{
-			Message: "must be no more than 63 characters",
-			Paths:   []string{"spec.broker"},
-			Details: "",
-		},
 	}, {
 		name: "invalid dependency annotation, not a corev1.ObjectReference",
 		t: &Trigger{
@@ -252,7 +193,7 @@ func TestTriggerValidation(t *testing.T) {
 				Spec: TriggerSpec{Subscriber: validSubscriber}},
 			want: &apis.FieldError{
 				Paths: []string{
-					"spec.broker", "spec.filter",
+					"spec.broker",
 					dependencyAnnotationPath + "." + "kind",
 					dependencyAnnotationPath + "." + "name",
 					dependencyAnnotationPath + "." + "apiVersion"},
@@ -317,7 +258,7 @@ func TestTriggerSpecValidation(t *testing.T) {
 		ts:   &TriggerSpec{},
 		want: func() *apis.FieldError {
 			var errs *apis.FieldError
-			fe := apis.ErrMissingField("broker", "filter")
+			fe := apis.ErrMissingField("broker")
 			errs = errs.Also(fe)
 			fe = apis.ErrGeneric("expected at least one, got none", "subscriber.ref", "subscriber.uri")
 			errs = errs.Also(fe)
@@ -328,7 +269,7 @@ func TestTriggerSpecValidation(t *testing.T) {
 		name: "missing broker",
 		ts: &TriggerSpec{
 			Broker:     "",
-			Filter:     validSourceAndTypeFilter,
+			Filter:     validAttributesFilter,
 			Subscriber: validSubscriber,
 		},
 		want: func() *apis.FieldError {
@@ -336,34 +277,21 @@ func TestTriggerSpecValidation(t *testing.T) {
 			return fe
 		}(),
 	}, {
-		name: "missing filter",
-		ts: &TriggerSpec{
-			Broker:     "test_broker",
-			Subscriber: validSubscriber,
-		},
-		want: func() *apis.FieldError {
-			fe := apis.ErrMissingField("filter")
-			return fe
-		}(),
-	}, {
-		name: "missing attributes keys",
+		name: "missing attributes keys, match all",
 		ts: &TriggerSpec{
 			Broker: "test_broker",
 			Filter: &TriggerFilter{
-				Attributes: &TriggerFilterAttributes{},
+				Attributes: TriggerFilterAttributes{},
 			},
 			Subscriber: validSubscriber,
 		},
-		want: &apis.FieldError{
-			Message: "At least one filtered attribute must be specified",
-			Paths:   []string{"filter.attributes"},
-		},
+		want: &apis.FieldError{},
 	}, {
 		name: "invalid attribute name, start with number",
 		ts: &TriggerSpec{
 			Broker: "test_broker",
 			Filter: &TriggerFilter{
-				Attributes: &TriggerFilterAttributes{
+				Attributes: TriggerFilterAttributes{
 					"0invalid": "my-value",
 				},
 			},
@@ -378,7 +306,7 @@ func TestTriggerSpecValidation(t *testing.T) {
 		ts: &TriggerSpec{
 			Broker: "test_broker",
 			Filter: &TriggerFilter{
-				Attributes: &TriggerFilterAttributes{
+				Attributes: TriggerFilterAttributes{
 					"invALID": "my-value",
 				},
 			},
@@ -389,28 +317,17 @@ func TestTriggerSpecValidation(t *testing.T) {
 			Paths:   []string{"filter.attributes"},
 		},
 	}, {
-		name: "Both attributes and deprecated source,type",
-		ts: &TriggerSpec{
-			Broker:     "test_broker",
-			Filter:     invalidFilterHasBoth,
-			Subscriber: validSubscriber,
-		},
-		want: func() *apis.FieldError {
-			fe := apis.ErrMultipleOneOf("filter.attributes, filter.sourceAndType")
-			return fe
-		}(),
-	}, {
 		name: "missing subscriber",
 		ts: &TriggerSpec{
 			Broker: "test_broker",
-			Filter: validSourceAndTypeFilter,
+			Filter: validAttributesFilter,
 		},
 		want: apis.ErrGeneric("expected at least one, got none", "subscriber.ref", "subscriber.uri"),
 	}, {
 		name: "missing subscriber.ref.name",
 		ts: &TriggerSpec{
 			Broker:     "test_broker",
-			Filter:     validSourceAndTypeFilter,
+			Filter:     validAttributesFilter,
 			Subscriber: invalidSubscriber,
 		},
 		want: apis.ErrMissingField("subscriber.ref.name"),
@@ -418,7 +335,7 @@ func TestTriggerSpecValidation(t *testing.T) {
 		name: "missing broker",
 		ts: &TriggerSpec{
 			Broker:     "",
-			Filter:     validSourceAndTypeFilter,
+			Filter:     validAttributesFilter,
 			Subscriber: validSubscriber,
 		},
 		want: apis.ErrMissingField("broker"),
@@ -434,7 +351,7 @@ func TestTriggerSpecValidation(t *testing.T) {
 		name: "valid SourceAndType filter",
 		ts: &TriggerSpec{
 			Broker:     "test_broker",
-			Filter:     validSourceAndTypeFilter,
+			Filter:     validAttributesFilter,
 			Subscriber: validSubscriber,
 		},
 		want: &apis.FieldError{},
@@ -496,7 +413,7 @@ func TestTriggerImmutableFields(t *testing.T) {
 		original: &Trigger{
 			Spec: TriggerSpec{
 				Broker: "broker",
-				Filter: validSourceAndTypeFilter,
+				Filter: validAttributesFilter,
 			},
 		},
 		want: nil,
