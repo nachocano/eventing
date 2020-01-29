@@ -1297,7 +1297,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ca4d1d28d6bfcfa603954856eec0636828da1256ecafb3c650af05f64cfb0b6c"
+  digest = "1:3d714b9e9535b4c878a16fff8c2ba5195df8c94d554a1bcff2e9f804350f4a5a"
   name = "knative.dev/pkg"
   packages = [
     "apis",
@@ -1327,6 +1327,8 @@
     "client/injection/kube/informers/admissionregistration/v1beta1/validatingwebhookconfiguration",
     "client/injection/kube/informers/apps/v1/deployment",
     "client/injection/kube/informers/apps/v1/deployment/fake",
+    "client/injection/kube/informers/core/v1/configmap",
+    "client/injection/kube/informers/core/v1/configmap/fake",
     "client/injection/kube/informers/core/v1/endpoints",
     "client/injection/kube/informers/core/v1/endpoints/fake",
     "client/injection/kube/informers/core/v1/namespace",
@@ -1399,7 +1401,7 @@
     "webhook/resourcesemantics/validation",
   ]
   pruneopts = "T"
-  revision = "4252f595d1ff347f0396166a0bd688a14463581a"
+  revision = "b51ee347cbd2c26c1af45177d427ffb62b008b39"
 
 [[projects]]
   branch = "master"
@@ -1532,6 +1534,8 @@
     "knative.dev/pkg/client/injection/kube/client/fake",
     "knative.dev/pkg/client/injection/kube/informers/apps/v1/deployment",
     "knative.dev/pkg/client/injection/kube/informers/apps/v1/deployment/fake",
+    "knative.dev/pkg/client/injection/kube/informers/core/v1/configmap",
+    "knative.dev/pkg/client/injection/kube/informers/core/v1/configmap/fake",
     "knative.dev/pkg/client/injection/kube/informers/core/v1/endpoints",
     "knative.dev/pkg/client/injection/kube/informers/core/v1/endpoints/fake",
     "knative.dev/pkg/client/injection/kube/informers/core/v1/namespace",
@@ -1560,6 +1564,7 @@
     "knative.dev/pkg/metrics/metricstest",
     "knative.dev/pkg/metrics/testing",
     "knative.dev/pkg/profiling",
+    "knative.dev/pkg/ptr",
     "knative.dev/pkg/reconciler/testing",
     "knative.dev/pkg/resolver",
     "knative.dev/pkg/signals",
