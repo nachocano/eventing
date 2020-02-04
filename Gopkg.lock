@@ -99,6 +99,14 @@
   version = "v1.0.1"
 
 [[projects]]
+  digest = "1:45c41cd27a8d986998680bfc86da0bbff5fa4f90d0f446c00636c8b099028ffe"
+  name = "github.com/blang/semver"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "ba2c2ddd89069b46a7011d4106f6868f17ee1705"
+  version = "v3.6.1"
+
+[[projects]]
   digest = "1:8f5acd4d4462b5136af644d25101f0968a7a94ee90fcb2059cec5b7cc42e0b20"
   name = "github.com/census-instrumentation/opencensus-proto"
   packages = [
@@ -114,7 +122,7 @@
   version = "v0.2.1"
 
 [[projects]]
-  digest = "1:3310d38d3fcfca84240997965eaf73d5105611ef4b99580f8ad744eb31df6f2e"
+  digest = "1:865b286da6b65d96df6b6858f282931cb2ccf1032df7f1874510a301e0b3a71d"
   name = "github.com/cloudevents/sdk-go"
   packages = [
     ".",
@@ -131,8 +139,8 @@
     "pkg/cloudevents/types",
   ]
   pruneopts = "NUT"
-  revision = "d289f68c35e89dd9b6a32b1d41faf60a0d9d090a"
-  version = "v0.11.0"
+  revision = "3673e23532dccb38196f600eec7e8b7090ecfb12"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
@@ -1297,7 +1305,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ca4d1d28d6bfcfa603954856eec0636828da1256ecafb3c650af05f64cfb0b6c"
+  digest = "1:4288d026898c6706774a4dc6a56d82d83b1ea943b68eb419d219a3731cf729ea"
   name = "knative.dev/pkg"
   packages = [
     "apis",
@@ -1327,6 +1335,8 @@
     "client/injection/kube/informers/admissionregistration/v1beta1/validatingwebhookconfiguration",
     "client/injection/kube/informers/apps/v1/deployment",
     "client/injection/kube/informers/apps/v1/deployment/fake",
+    "client/injection/kube/informers/core/v1/configmap",
+    "client/injection/kube/informers/core/v1/configmap/fake",
     "client/injection/kube/informers/core/v1/endpoints",
     "client/injection/kube/informers/core/v1/endpoints/fake",
     "client/injection/kube/informers/core/v1/namespace",
@@ -1399,18 +1409,18 @@
     "webhook/resourcesemantics/validation",
   ]
   pruneopts = "T"
-  revision = "4252f595d1ff347f0396166a0bd688a14463581a"
+  revision = "95163c65ac3d7714a6cdfb8906ab1bea71c9f777"
 
 [[projects]]
   branch = "master"
-  digest = "1:4ba0f80b3feed917d2c9a1aa79ea95836c3aef84589431cff77ffd01615a1150"
+  digest = "1:fdc3106893e9ad75a8615d1326df00899c519ea71684092b4a10b3260f3c0c15"
   name = "knative.dev/test-infra"
   packages = [
     "scripts",
     "tools/dep-collector",
   ]
   pruneopts = "UT"
-  revision = "b0c4c4e1691282f24ccb3b5b0399952bf086edfc"
+  revision = "ae2eca5b05181add212724579f1d85d3b104cdd7"
 
 [[projects]]
   digest = "1:8730e0150dfb2b7e173890c8b9868e7a273082ef8e39f4940e3506a481cf895c"
@@ -1532,6 +1542,8 @@
     "knative.dev/pkg/client/injection/kube/client/fake",
     "knative.dev/pkg/client/injection/kube/informers/apps/v1/deployment",
     "knative.dev/pkg/client/injection/kube/informers/apps/v1/deployment/fake",
+    "knative.dev/pkg/client/injection/kube/informers/core/v1/configmap",
+    "knative.dev/pkg/client/injection/kube/informers/core/v1/configmap/fake",
     "knative.dev/pkg/client/injection/kube/informers/core/v1/endpoints",
     "knative.dev/pkg/client/injection/kube/informers/core/v1/endpoints/fake",
     "knative.dev/pkg/client/injection/kube/informers/core/v1/namespace",
@@ -1560,6 +1572,7 @@
     "knative.dev/pkg/metrics/metricstest",
     "knative.dev/pkg/metrics/testing",
     "knative.dev/pkg/profiling",
+    "knative.dev/pkg/ptr",
     "knative.dev/pkg/reconciler/testing",
     "knative.dev/pkg/resolver",
     "knative.dev/pkg/signals",
