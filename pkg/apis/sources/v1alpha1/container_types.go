@@ -20,8 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"knative.dev/pkg/apis"
-	duckv1 "knative.dev/pkg/apis/duck/v1"
-	duckv1alpha1 "knative.dev/pkg/apis/duck/v1alpha1"
 	"knative.dev/pkg/kmeta"
 )
 
@@ -33,8 +31,8 @@ type ContainerSource struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   SinkBindingSpec   `json:"spec"`
-	Status SinkBindingStatus `json:"status"`
+	Spec   ContainerSourceSpec   `json:"spec"`
+	Status ContainerSourceStatus `json:"status"`
 }
 
 // Check the interfaces that SinkBinding should be implementing.
@@ -48,8 +46,7 @@ var (
 
 // SinkBindingSpec holds the desired state of the SinkBinding (from the client).
 type ContainerSourceSpec struct {
-	duckv1.SourceSpec        `json:",inline"`
-	duckv1alpha1.BindingSpec `json:",inline"`
+	SinkBindingSpec `json:",inline"`
 }
 
 const (
@@ -60,7 +57,7 @@ const (
 
 // SinkBindingStatus communicates the observed state of the SinkBinding (from the controller).
 type ContainerSourceStatus struct {
-	duckv1.SourceStatus `json:",inline"`
+	SinkBindingStatus `json:",inline"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
