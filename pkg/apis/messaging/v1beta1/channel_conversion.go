@@ -1,7 +1,6 @@
-// +build e2e
-
 /*
-Copyright 2020 The Knative Authors
+Copyright 2020 The Knative Authors.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -15,15 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package e2e
+package v1beta1
 
 import (
-	"testing"
+	"context"
+	"fmt"
 
-	"knative.dev/eventing/test/e2e/helpers"
+	"knative.dev/pkg/apis"
 )
 
-// TestBrokerDeadLetterSink tests Broker's DeadLetterSink
-func TestBrokerDeadLetterSink(t *testing.T) {
-	helpers.TestBrokerWithConfig(t, channelTestRunner)
+// ConvertUp implements apis.Convertible
+func (source *Channel) ConvertUp(ctx context.Context, sink apis.Convertible) error {
+	return fmt.Errorf("v1beta1 is the highest known version, got: %T", sink)
+}
+
+// ConvertDown implements apis.Convertible
+func (sink *Channel) ConvertDown(ctx context.Context, source apis.Convertible) error {
+	return fmt.Errorf("v1beta1 is the highest known version, got: %T", source)
 }

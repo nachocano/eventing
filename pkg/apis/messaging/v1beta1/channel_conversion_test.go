@@ -1,7 +1,6 @@
-// +build e2e
-
 /*
 Copyright 2020 The Knative Authors
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -15,15 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package e2e
+package v1beta1
 
 import (
+	"context"
 	"testing"
-
-	"knative.dev/eventing/test/e2e/helpers"
 )
 
-// TestBrokerDeadLetterSink tests Broker's DeadLetterSink
-func TestBrokerDeadLetterSink(t *testing.T) {
-	helpers.TestBrokerWithConfig(t, channelTestRunner)
+func TestChannelConversionBadType(t *testing.T) {
+	good, bad := &Channel{}, &Channel{}
+
+	if err := good.ConvertUp(context.Background(), bad); err == nil {
+		t.Errorf("ConvertUp() = %#v, wanted error", bad)
+	}
+
+	if err := good.ConvertDown(context.Background(), bad); err == nil {
+		t.Errorf("ConvertDown() = %#v, wanted error", good)
+	}
 }
