@@ -27,18 +27,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+
 	"knative.dev/pkg/apis/duck"
+	duckv1 "knative.dev/pkg/apis/duck/v1"
+	pkgreconciler "knative.dev/pkg/reconciler"
 	"knative.dev/pkg/resolver"
+	"knative.dev/pkg/tracker"
 
 	eventingduckv1alpha1 "knative.dev/eventing/pkg/apis/duck/v1alpha1"
+	eventingduckv1beta1 "knative.dev/eventing/pkg/apis/duck/v1beta1"
 	"knative.dev/eventing/pkg/apis/messaging/v1alpha1"
 	subscriptionreconciler "knative.dev/eventing/pkg/client/injection/reconciler/messaging/v1alpha1/subscription"
 	listers "knative.dev/eventing/pkg/client/listers/messaging/v1alpha1"
 	eventingduck "knative.dev/eventing/pkg/duck"
 	"knative.dev/eventing/pkg/logging"
 	"knative.dev/eventing/pkg/reconciler"
-	duckv1 "knative.dev/pkg/apis/duck/v1"
-	pkgreconciler "knative.dev/pkg/reconciler"
 )
 
 const (
@@ -72,6 +75,7 @@ type Reconciler struct {
 	channelLister       listers.ChannelLister
 	channelableTracker  eventingduck.ListableTracker
 	destinationResolver *resolver.URIResolver
+	tracker             tracker.Interface
 }
 
 // Check that our Reconciler implements Interface
@@ -335,6 +339,26 @@ func (r *Reconciler) getChannel(ctx context.Context, sub *v1alpha1.Subscription)
 	// to have a "backing" channel that is what we need to actually operate on
 	// as well as keep track of.
 	if channelGVK.Group == gvk.Group && channelGVK.Kind == gvk.Kind {
+		// Track changes on Channel.
+		// Ref: https://github.com/knative/eventing/issues/2641
+		// NOTE: There is a race condition with using the channelableTracker
+		// for Channel when mixed with the usage of channelLister. The
+		// channelableTracker has a different cache than the channelLister,
+		// when channelLister.Channels is called because the channelableTracker
+		// caused an enqueue, the Channels cache my not have had time to
+		// re-sync therefore we have to track Channels using a tracker linked
+		// to the cache we intend to use to pull the Channel from. This linkage
+		// is setup in NewController for r.tracker.
+		apiVersion, kind := gvk.ToAPIVersionAndKind()
+		if err := r.tracker.TrackReference(tracker.Reference{
+			APIVersion: apiVersion,
+			Kind:       kind,
+			Namespace:  sub.Namespace,
+			Name:       sub.Spec.Channel.Name,
+		}, sub); err != nil {
+			return nil, err
+		}
+
 		logging.FromContext(ctx).Warn("fetching backing channel", zap.Any("channel", sub.Spec.Channel))
 		// Because the above (trackAndFetchChannel) gives us back a Channelable
 		// the status of it will not have the extra bits we need (namely, pointer
@@ -365,8 +389,8 @@ func (r *Reconciler) getChannel(ctx context.Context, sub *v1alpha1.Subscription)
 	return ch, nil
 }
 
-func isNilOrEmptyDeliveryDeadLetterSink(delivery *eventingduckv1alpha1.DeliverySpec) bool {
-	return delivery == nil || equality.Semantic.DeepEqual(delivery, &eventingduckv1alpha1.DeliverySpec{}) ||
+func isNilOrEmptyDeliveryDeadLetterSink(delivery *eventingduckv1beta1.DeliverySpec) bool {
+	return delivery == nil || equality.Semantic.DeepEqual(delivery, &eventingduckv1beta1.DeliverySpec{}) ||
 		delivery.DeadLetterSink == nil
 }
 
