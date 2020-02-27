@@ -18,29 +18,19 @@ package main
 
 import (
 	"context"
-
-	"knative.dev/eventing/pkg/reconciler/sinkbinding"
+	"os"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	configsv1alpha1 "knative.dev/eventing/pkg/apis/configs/v1alpha1"
-	"knative.dev/eventing/pkg/apis/eventing"
-	eventingv1alpha1 "knative.dev/eventing/pkg/apis/eventing/v1alpha1"
-	eventingv1beta1 "knative.dev/eventing/pkg/apis/eventing/v1beta1"
-	"knative.dev/eventing/pkg/apis/flows"
-	flowsv1alpha1 "knative.dev/eventing/pkg/apis/flows/v1alpha1"
-	flowsv1beta1 "knative.dev/eventing/pkg/apis/flows/v1beta1"
-	legacysourcesv1alpha1 "knative.dev/eventing/pkg/apis/legacysources/v1alpha1"
-	"knative.dev/eventing/pkg/apis/messaging"
-	messagingv1alpha1 "knative.dev/eventing/pkg/apis/messaging/v1alpha1"
-	messagingv1beta1 "knative.dev/eventing/pkg/apis/messaging/v1beta1"
-	sourcesv1alpha1 "knative.dev/eventing/pkg/apis/sources/v1alpha1"
+
 	"knative.dev/eventing/pkg/defaultchannel"
 	"knative.dev/eventing/pkg/logconfig"
 	"knative.dev/eventing/pkg/reconciler/legacysinkbinding"
 	"knative.dev/pkg/configmap"
 	"knative.dev/pkg/controller"
+	"knative.dev/pkg/injection"
 	"knative.dev/pkg/injection/sharedmain"
+	"knative.dev/pkg/leaderelection"
 	"knative.dev/pkg/logging"
 	"knative.dev/pkg/signals"
 	tracingconfig "knative.dev/pkg/tracing/config"
@@ -52,29 +42,55 @@ import (
 	"knative.dev/pkg/webhook/resourcesemantics/conversion"
 	"knative.dev/pkg/webhook/resourcesemantics/defaulting"
 	"knative.dev/pkg/webhook/resourcesemantics/validation"
+
+	defaultconfig "knative.dev/eventing/pkg/apis/config"
+	configsv1alpha1 "knative.dev/eventing/pkg/apis/configs/v1alpha1"
+	configvalidation "knative.dev/eventing/pkg/apis/configs/validation"
+	"knative.dev/eventing/pkg/apis/eventing"
+	eventingv1alpha1 "knative.dev/eventing/pkg/apis/eventing/v1alpha1"
+	eventingv1beta1 "knative.dev/eventing/pkg/apis/eventing/v1beta1"
+	"knative.dev/eventing/pkg/apis/flows"
+	flowsv1alpha1 "knative.dev/eventing/pkg/apis/flows/v1alpha1"
+	flowsv1beta1 "knative.dev/eventing/pkg/apis/flows/v1beta1"
+	legacysourcesv1alpha1 "knative.dev/eventing/pkg/apis/legacysources/v1alpha1"
+	"knative.dev/eventing/pkg/apis/messaging"
+	messagingv1alpha1 "knative.dev/eventing/pkg/apis/messaging/v1alpha1"
+	messagingv1beta1 "knative.dev/eventing/pkg/apis/messaging/v1beta1"
+	"knative.dev/eventing/pkg/apis/sources"
+	sourcesv1alpha1 "knative.dev/eventing/pkg/apis/sources/v1alpha1"
+	sourcesv1alpha2 "knative.dev/eventing/pkg/apis/sources/v1alpha2"
+	"knative.dev/eventing/pkg/reconciler/sinkbinding"
 )
 
 var ourTypes = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
 	// For group eventing.knative.dev.
+	// v1alpha1
 	eventingv1alpha1.SchemeGroupVersion.WithKind("Broker"):    &eventingv1alpha1.Broker{},
 	eventingv1alpha1.SchemeGroupVersion.WithKind("Trigger"):   &eventingv1alpha1.Trigger{},
 	eventingv1alpha1.SchemeGroupVersion.WithKind("EventType"): &eventingv1alpha1.EventType{},
-	eventingv1beta1.SchemeGroupVersion.WithKind("Broker"):     &eventingv1beta1.Broker{},
-	eventingv1beta1.SchemeGroupVersion.WithKind("Trigger"):    &eventingv1beta1.Trigger{},
-	eventingv1beta1.SchemeGroupVersion.WithKind("EventType"):  &eventingv1beta1.EventType{},
+	// v1beta1
+	eventingv1beta1.SchemeGroupVersion.WithKind("Broker"):    &eventingv1beta1.Broker{},
+	eventingv1beta1.SchemeGroupVersion.WithKind("Trigger"):   &eventingv1beta1.Trigger{},
+	eventingv1beta1.SchemeGroupVersion.WithKind("EventType"): &eventingv1beta1.EventType{},
 
 	// For group messaging.knative.dev.
+	// v1alpha1
 	messagingv1alpha1.SchemeGroupVersion.WithKind("InMemoryChannel"): &messagingv1alpha1.InMemoryChannel{},
 	messagingv1alpha1.SchemeGroupVersion.WithKind("Channel"):         &messagingv1alpha1.Channel{},
 	messagingv1alpha1.SchemeGroupVersion.WithKind("Subscription"):    &messagingv1alpha1.Subscription{},
-	messagingv1beta1.SchemeGroupVersion.WithKind("InMemoryChannel"):  &messagingv1beta1.InMemoryChannel{},
-	messagingv1beta1.SchemeGroupVersion.WithKind("Channel"):          &messagingv1beta1.Channel{},
-	messagingv1beta1.SchemeGroupVersion.WithKind("Subscription"):     &messagingv1beta1.Subscription{},
+	// v1beta1
+	messagingv1beta1.SchemeGroupVersion.WithKind("InMemoryChannel"): &messagingv1beta1.InMemoryChannel{},
+	messagingv1beta1.SchemeGroupVersion.WithKind("Channel"):         &messagingv1beta1.Channel{},
+	messagingv1beta1.SchemeGroupVersion.WithKind("Subscription"):    &messagingv1beta1.Subscription{},
 
 	// For group sources.knative.dev.
+	// v1alpha1
 	sourcesv1alpha1.SchemeGroupVersion.WithKind("ApiServerSource"): &sourcesv1alpha1.ApiServerSource{},
 	sourcesv1alpha1.SchemeGroupVersion.WithKind("PingSource"):      &sourcesv1alpha1.PingSource{},
 	sourcesv1alpha1.SchemeGroupVersion.WithKind("SinkBinding"):     &sourcesv1alpha1.SinkBinding{},
+	// v1alpha2
+	sourcesv1alpha2.SchemeGroupVersion.WithKind("PingSource"):  &sourcesv1alpha2.PingSource{},
+	sourcesv1alpha2.SchemeGroupVersion.WithKind("SinkBinding"): &sourcesv1alpha2.SinkBinding{},
 
 	// For group sources.eventing.knative.dev.
 	// TODO(#2312): Remove this after v0.13.
@@ -84,21 +100,27 @@ var ourTypes = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
 	legacysourcesv1alpha1.SchemeGroupVersion.WithKind("CronJobSource"):   &legacysourcesv1alpha1.CronJobSource{},
 
 	// For group flows.knative.dev
+	// v1alpha1
 	flowsv1alpha1.SchemeGroupVersion.WithKind("Parallel"): &flowsv1alpha1.Parallel{},
 	flowsv1alpha1.SchemeGroupVersion.WithKind("Sequence"): &flowsv1alpha1.Sequence{},
-	flowsv1beta1.SchemeGroupVersion.WithKind("Parallel"):  &flowsv1beta1.Parallel{},
-	flowsv1beta1.SchemeGroupVersion.WithKind("Sequence"):  &flowsv1beta1.Sequence{},
+	// v1beta1
+	flowsv1beta1.SchemeGroupVersion.WithKind("Parallel"): &flowsv1beta1.Parallel{},
+	flowsv1beta1.SchemeGroupVersion.WithKind("Sequence"): &flowsv1beta1.Sequence{},
 
 	// For group configs.knative.dev
 	configsv1alpha1.SchemeGroupVersion.WithKind("ConfigMapPropagation"): &configsv1alpha1.ConfigMapPropagation{},
 }
 
 func NewDefaultingAdmissionController(ctx context.Context, cmw configmap.Watcher) *controller.Impl {
+	// Decorate contexts with the current state of the config.
+	store := defaultconfig.NewStore(logging.FromContext(ctx).Named("config-store"))
+	store.WatchConfigs(cmw)
+
 	logger := logging.FromContext(ctx)
 
 	// Decorate contexts with the current state of the config.
 	ctxFunc := func(ctx context.Context) context.Context {
-		return ctx
+		return store.ToContext(ctx)
 	}
 
 	// Watch the default-ch-webhook ConfigMap and dynamically update the default
@@ -130,6 +152,15 @@ func NewDefaultingAdmissionController(ctx context.Context, cmw configmap.Watcher
 }
 
 func NewValidationAdmissionController(ctx context.Context, cmw configmap.Watcher) *controller.Impl {
+	// Decorate contexts with the current state of the config.
+	store := defaultconfig.NewStore(logging.FromContext(ctx).Named("config-store"))
+	store.WatchConfigs(cmw)
+
+	// Decorate contexts with the current state of the config.
+	ctxFunc := func(ctx context.Context) context.Context {
+		return store.ToContext(ctx)
+	}
+
 	return validation.NewAdmissionController(ctx,
 
 		// Name of the resource webhook.
@@ -142,10 +173,7 @@ func NewValidationAdmissionController(ctx context.Context, cmw configmap.Watcher
 		ourTypes,
 
 		// A function that infuses the context passed to Validate/SetDefaults with custom metadata.
-		func(ctx context.Context) context.Context {
-			// return v1.WithUpgradeViaDefaulting(store.ToContext(ctx))
-			return ctx
-		},
+		ctxFunc,
 
 		// Whether to disallow unknown fields.
 		true,
@@ -165,51 +193,66 @@ func NewConfigValidationController(ctx context.Context, cmw configmap.Watcher) *
 		configmap.Constructors{
 			tracingconfig.ConfigName: tracingconfig.NewTracingConfigFromConfigMap,
 			// metrics.ConfigMapName():   metricsconfig.NewObservabilityConfigFromConfigMap,
-			logging.ConfigMapName(): logging.NewConfigFromConfigMap,
+			logging.ConfigMapName():        logging.NewConfigFromConfigMap,
+			leaderelection.ConfigMapName(): configvalidation.ValidateLeaderElectionConfig,
 		},
 	)
 }
 
-func NewSinkBindingWebhook(ctx context.Context, cmw configmap.Watcher) *controller.Impl {
-	sbresolver := sinkbinding.WithContextFactory(ctx, func(types.NamespacedName) {})
+func NewSinkBindingWebhook(opts ...psbinding.ReconcilerOption) injection.ControllerConstructor {
+	return func(ctx context.Context, cmw configmap.Watcher) *controller.Impl {
+		sbresolver := sinkbinding.WithContextFactory(ctx, func(types.NamespacedName) {})
 
-	return psbinding.NewAdmissionController(ctx,
+		return psbinding.NewAdmissionController(ctx,
 
-		// Name of the resource webhook.
-		"sinkbindings.webhook.sources.knative.dev",
+			// Name of the resource webhook.
+			"sinkbindings.webhook.sources.knative.dev",
 
-		// The path on which to serve the webhook.
-		"/sinkbindings",
+			// The path on which to serve the webhook.
+			"/sinkbindings",
 
-		// How to get all the Bindables for configuring the mutating webhook.
-		sinkbinding.ListAll,
+			// How to get all the Bindables for configuring the mutating webhook.
+			sinkbinding.ListAll,
 
-		// How to setup the context prior to invoking Do/Undo.
-		sbresolver,
-	)
+			// How to setup the context prior to invoking Do/Undo.
+			sbresolver,
+			opts...,
+		)
+	}
 }
 
 // TODO(#2312): Remove this after v0.13.
-func NewLegacySinkBindingWebhook(ctx context.Context, cmw configmap.Watcher) *controller.Impl {
-	sbresolver := legacysinkbinding.WithContextFactory(ctx, func(types.NamespacedName) {})
+func NewLegacySinkBindingWebhook(opts ...psbinding.ReconcilerOption) injection.ControllerConstructor {
+	return func(ctx context.Context, cmw configmap.Watcher) *controller.Impl {
+		sbresolver := legacysinkbinding.WithContextFactory(ctx, func(types.NamespacedName) {})
 
-	return psbinding.NewAdmissionController(ctx,
+		return psbinding.NewAdmissionController(ctx,
 
-		// Name of the resource webhook.
-		"legacysinkbindings.webhook.sources.knative.dev",
+			// Name of the resource webhook.
+			"legacysinkbindings.webhook.sources.knative.dev",
 
-		// The path on which to serve the webhook.
-		"/legacysinkbindings",
+			// The path on which to serve the webhook.
+			"/legacysinkbindings",
 
-		// How to get all the Bindables for configuring the mutating webhook.
-		legacysinkbinding.ListAll,
+			// How to get all the Bindables for configuring the mutating webhook.
+			legacysinkbinding.ListAll,
 
-		// How to setup the context prior to invoking Do/Undo.
-		sbresolver,
-	)
+			// How to setup the context prior to invoking Do/Undo.
+			sbresolver,
+			opts...,
+		)
+	}
 }
 
 func NewConversionController(ctx context.Context, cmw configmap.Watcher) *controller.Impl {
+	// Decorate contexts with the current state of the config.
+	store := defaultconfig.NewStore(logging.FromContext(ctx).Named("config-store"))
+	store.WatchConfigs(cmw)
+	// Decorate contexts with the current state of the config.
+	ctxFunc := func(ctx context.Context) context.Context {
+		return store.ToContext(ctx)
+	}
+
 	var (
 		eventingv1alpha1_  = eventingv1alpha1.SchemeGroupVersion.Version
 		eventingv1beta1_   = eventingv1beta1.SchemeGroupVersion.Version
@@ -217,6 +260,8 @@ func NewConversionController(ctx context.Context, cmw configmap.Watcher) *contro
 		messagingv1beta1_  = messagingv1beta1.SchemeGroupVersion.Version
 		flowsv1alpha1_     = flowsv1alpha1.SchemeGroupVersion.Version
 		flowsv1beta1_      = flowsv1beta1.SchemeGroupVersion.Version
+		sourcesv1alpha1_   = sourcesv1alpha1.SchemeGroupVersion.Version
+		sourcesv1alpha2_   = sourcesv1alpha2.SchemeGroupVersion.Version
 	)
 
 	return conversion.NewConversionController(ctx,
@@ -284,16 +329,36 @@ func NewConversionController(ctx context.Context, cmw configmap.Watcher) *contro
 					flowsv1beta1_:  &flowsv1beta1.Parallel{},
 				},
 			},
+			// Sources
+			// TODO: ApiServerSource
+			sourcesv1alpha2.Kind("PingSource"): {
+				DefinitionName: sources.PingSourceResource.String(),
+				HubVersion:     sourcesv1alpha1_,
+				Zygotes: map[string]conversion.ConvertibleObject{
+					sourcesv1alpha1_: &sourcesv1alpha1.PingSource{},
+					sourcesv1alpha2_: &sourcesv1alpha2.PingSource{},
+				},
+			},
+			sourcesv1alpha2.Kind("SinkBinding"): {
+				DefinitionName: sources.SinkBindingResource.String(),
+				HubVersion:     sourcesv1alpha1_,
+				Zygotes: map[string]conversion.ConvertibleObject{
+					sourcesv1alpha1_: &sourcesv1alpha1.SinkBinding{},
+					sourcesv1alpha2_: &sourcesv1alpha2.SinkBinding{},
+				},
+			},
 		},
 
 		// A function that infuses the context passed to ConvertTo/ConvertFrom/SetDefaults with custom metadata.
-		func(ctx context.Context) context.Context {
-			return ctx
-		},
+		ctxFunc,
 	)
 }
 
 func main() {
+	sbSelector := psbinding.WithSelector(psbinding.ExclusionSelector)
+	if os.Getenv("SINK_BINDING_SELECTION_MODE") == "inclusion" {
+		sbSelector = psbinding.WithSelector(psbinding.InclusionSelector)
+	}
 	// Set up a signal context with our webhook options
 	ctx := webhook.WithOptions(signals.NewContext(), webhook.Options{
 		ServiceName: logconfig.WebhookName(),
@@ -310,8 +375,8 @@ func main() {
 		NewConversionController,
 
 		// For each binding we have a controller and a binding webhook.
-		sinkbinding.NewController, NewSinkBindingWebhook,
+		sinkbinding.NewController, NewSinkBindingWebhook(sbSelector),
 		// TODO(#2312): Remove this after v0.13.
-		legacysinkbinding.NewController, NewLegacySinkBindingWebhook,
+		legacysinkbinding.NewController, NewLegacySinkBindingWebhook(sbSelector),
 	)
 }
