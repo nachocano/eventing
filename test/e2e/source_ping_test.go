@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"testing"
 
+	sourcesv1alpha2 "knative.dev/eventing/pkg/apis/sources/v1alpha2"
+
 	"k8s.io/apimachinery/pkg/util/uuid"
 
 	"knative.dev/eventing/test/lib"
@@ -31,7 +33,7 @@ import (
 	eventingtesting "knative.dev/eventing/pkg/reconciler/testing"
 )
 
-func TestPingSource(t *testing.T) {
+func TestPingSourceV1Alpha1(t *testing.T) {
 	const (
 		sourceName = "e2e-ping-source"
 		// Every 1 minute starting from now
@@ -49,7 +51,7 @@ func TestPingSource(t *testing.T) {
 
 	// create cron job source
 	data := fmt.Sprintf("TestPingSource %s", uuid.NewUUID())
-	source := eventingtesting.NewPingSource(
+	source := eventingtesting.NewPingSourceV1Alpha1(
 		sourceName,
 		client.Namespace,
 		eventingtesting.WithPingSourceSpec(sourcesv1alpha1.PingSourceSpec{
@@ -58,7 +60,47 @@ func TestPingSource(t *testing.T) {
 			Sink:     &duckv1.Destination{Ref: resources.KnativeRefForService(loggerPodName, client.Namespace)},
 		}),
 	)
-	client.CreatePingSourceOrFail(source)
+	client.CreatePingSourceV1Alpha1OrFail(source)
+
+	// wait for all test resources to be ready
+	client.WaitForAllTestResourcesReadyOrFail()
+
+	// verify the logger service receives the event
+	if err := client.CheckLog(loggerPodName, lib.CheckerContains(data)); err != nil {
+		t.Fatalf("String %q not found in logs of logger pod %q: %v", data, loggerPodName, err)
+	}
+}
+
+func TestPingSourceV1Alpha2(t *testing.T) {
+	const (
+		sourceName = "e2e-ping-source"
+		// Every 1 minute starting from now
+
+		loggerPodName = "e2e-ping-source-logger-pod"
+	)
+
+	client := setup(t, true)
+	defer tearDown(client)
+
+	// create event logger pod and service
+	loggerPod := resources.EventLoggerPod(loggerPodName)
+	client.CreatePodOrFail(loggerPod, lib.WithService(loggerPodName))
+
+	// create cron job source
+	data := fmt.Sprintf("TestPingSource %s", uuid.NewUUID())
+	source := eventingtesting.NewPingSourceV1Alpha2(
+		sourceName,
+		client.Namespace,
+		eventingtesting.WithPingSourceV1A2Spec(sourcesv1alpha2.PingSourceSpec{
+			JsonData: data,
+			SourceSpec: duckv1.SourceSpec{
+				Sink: duckv1.Destination{
+					Ref: resources.KnativeRefForService(loggerPodName, client.Namespace),
+				},
+			},
+		}),
+	)
+	client.CreatePingSourceV1Alpha2OrFail(source)
 
 	// wait for all test resources to be ready
 	client.WaitForAllTestResourcesReadyOrFail()
