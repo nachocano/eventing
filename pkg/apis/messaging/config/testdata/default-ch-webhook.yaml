@@ -15,9 +15,24 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: config-br-default-channel
+  name: default-ch-webhook
   namespace: knative-eventing
+  labels:
+    eventing.knative.dev/release: devel
+
 data:
-  channelTemplateSpec: |
-    apiVersion: messaging.knative.dev/v1alpha1
-    kind: InMemoryChannel
+  _example: |
+    ################################
+    #                              #
+    #    EXAMPLE CONFIGURATION     #
+    #                              #
+    ################################
+    # Configuration for defaulting channels that do not specify CRD implementations.
+    default-ch-config: |
+      clusterDefault:
+        apiVersion: messaging.knative.dev/v1beta1
+        kind: InMemoryChannel
+      namespaceDefaults:
+        some-namespace:
+          apiVersion: messaging.knative.dev/v1alpha1
+          kind: KafkaChannel
