@@ -25,10 +25,13 @@ import (
 	"strings"
 	"time"
 
-	cloudevents "github.com/cloudevents/sdk-go/v1"
-	"github.com/cloudevents/sdk-go/v1/cloudevents/client"
+	cloudevents "github.com/cloudevents/sdk-go"
+	"github.com/cloudevents/sdk-go/pkg/cloudevents/client"
+	"go.opencensus.io/trace"
 	"go.uber.org/zap"
+	"k8s.io/apimachinery/pkg/types"
 	"knative.dev/eventing/pkg/broker"
+	"knative.dev/eventing/pkg/tracing"
 	"knative.dev/eventing/pkg/utils"
 )
 
@@ -95,6 +98,22 @@ func (h *Handler) receive(ctx context.Context, event cloudevents.Event, resp *cl
 	brokerNamespace := pieces[1]
 	brokerName := pieces[2]
 
+	brokerNamespacedName := types.NamespacedName{
+		Name:      brokerName,
+		Namespace: brokerNamespace,
+	}
+	ctx, span := trace.StartSpan(ctx, tracing.BrokerMessagingDestination(brokerNamespacedName))
+	defer span.End()
+
+	if span.IsRecordingEvents() {
+		span.AddAttributes(
+			tracing.MessagingSystemAttribute,
+			tracing.MessagingProtocolHTTP,
+			tracing.BrokerMessagingDestinationAttribute(brokerNamespacedName),
+			tracing.MessagingMessageIDAttribute(event.ID()),
+		)
+	}
+
 	reporterArgs := &ReportArgs{
 		ns:        brokerNamespace,
 		broker:    brokerName,
@@ -120,7 +139,7 @@ func (h *Handler) receive(ctx context.Context, event cloudevents.Event, resp *cl
 	// channels and look up from the channels Status
 	channelURI := &url.URL{
 		Scheme: "http",
-		Host:   fmt.Sprintf("%s-kne-trigger-kn-channel.%s.svc.cluster.local", brokerName, brokerNamespace),
+		Host:   fmt.Sprintf("%s-kne-trigger-kn-channel.%s.svc.%s", brokerName, brokerNamespace, utils.GetClusterDomainName()),
 		Path:   "/",
 	}
 	sendingCTX := utils.SendingContextFrom(ctx, tctx, channelURI)

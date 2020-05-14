@@ -24,7 +24,7 @@ import (
 	// Uncomment the following line to load the gcp plugin
 	// (only required to authenticate against GKE clusters).
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	cloudevents "github.com/cloudevents/sdk-go/v1"
+	cloudevents "github.com/cloudevents/sdk-go"
 	"go.opencensus.io/stats/view"
 	"knative.dev/pkg/metrics"
 	"knative.dev/pkg/source"
@@ -32,7 +32,7 @@ import (
 
 type myAdapter struct{}
 
-func TestMain(t *testing.T) {
+func TestMainWithContext(t *testing.T) {
 	os.Setenv("SINK_URI", "http://sink")
 	os.Setenv("NAMESPACE", "ns")
 	os.Setenv("K_METRICS_CONFIG", "metrics")

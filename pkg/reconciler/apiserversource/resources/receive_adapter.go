@@ -17,41 +17,52 @@ limitations under the License.
 package resources
 
 import (
+	"encoding/json"
 	"fmt"
 
-	v1 "k8s.io/api/apps/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"knative.dev/eventing/pkg/apis/sources/v1alpha1"
-	"knative.dev/eventing/pkg/utils"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"knative.dev/eventing/pkg/adapter/apiserver"
+	"knative.dev/eventing/pkg/apis/sources/v1alpha2"
+	reconcilersource "knative.dev/eventing/pkg/reconciler/source"
 	"knative.dev/pkg/kmeta"
+	"knative.dev/pkg/system"
 )
 
 // ReceiveAdapterArgs are the arguments needed to create a ApiServer Receive Adapter.
 // Every field is required.
 type ReceiveAdapterArgs struct {
-	Image         string
-	Source        *v1alpha1.ApiServerSource
-	Labels        map[string]string
-	SinkURI       string
-	MetricsConfig string
-	LoggingConfig string
+	Image   string
+	Source  *v1alpha2.ApiServerSource
+	Labels  map[string]string
+	SinkURI string
+	Configs reconcilersource.ConfigAccessor
 }
 
 // MakeReceiveAdapter generates (but does not insert into K8s) the Receive Adapter Deployment for
 // ApiServer Sources.
-func MakeReceiveAdapter(args *ReceiveAdapterArgs) *v1.Deployment {
+func MakeReceiveAdapter(args *ReceiveAdapterArgs) (*appsv1.Deployment, error) {
 	replicas := int32(1)
-	return &v1.Deployment{
+
+	env, err := makeEnv(args)
+	if err != nil {
+		return nil, fmt.Errorf("error generating env vars: %w", err)
+	}
+
+	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: args.Source.Namespace,
-			Name:      utils.GenerateFixedName(args.Source, fmt.Sprintf("apiserversource-%s", args.Source.Name)),
+			Name:      kmeta.ChildName(fmt.Sprintf("apiserversource-%s-", args.Source.Name), string(args.Source.GetUID())),
 			Labels:    args.Labels,
 			OwnerReferences: []metav1.OwnerReference{
 				*kmeta.NewControllerRef(args.Source),
 			},
 		},
-		Spec: v1.DeploymentSpec{
+		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: args.Labels,
 			},
@@ -69,7 +80,7 @@ func MakeReceiveAdapter(args *ReceiveAdapterArgs) *v1.Deployment {
 						{
 							Name:  "receive-adapter",
 							Image: args.Image,
-							Env:   makeEnv(args.SinkURI, args.LoggingConfig, args.MetricsConfig, &args.Source.Spec, args.Source.ObjectMeta.Name),
+							Env:   env,
 							Ports: []corev1.ContainerPort{{
 								Name:          "metrics",
 								ContainerPort: 9090,
@@ -79,65 +90,48 @@ func MakeReceiveAdapter(args *ReceiveAdapterArgs) *v1.Deployment {
 				},
 			},
 		},
-	}
+	}, nil
 }
 
-func makeEnv(sinkURI, loggingConfig, metricsConfig string, spec *v1alpha1.ApiServerSourceSpec, name string) []corev1.EnvVar {
-	apiversions := ""
-	kinds := ""
-	controlled := ""
-	selectors := ""
-	ownerapiversions := ""
-	ownerkinds := ""
-	sep := ""
-	boolsep := ""
-
-	for _, res := range spec.Resources {
-		apiversions += sep + res.APIVersion
-		kinds += sep + res.Kind
-		ownerapiversions += sep + res.ControllerSelector.APIVersion
-		ownerkinds += sep + res.ControllerSelector.Kind
-
-		if res.Controller {
-			controlled += boolsep + "true"
-		} else {
-			controlled += boolsep + "false"
-		}
-
-		// No need to check for error here.
-		selector, _ := metav1.LabelSelectorAsSelector(&res.LabelSelector)
-		labelSelector := selector.String()
-
-		selectors += sep + labelSelector
-
-		sep = ";"
-		boolsep = ","
+func makeEnv(args *ReceiveAdapterArgs) ([]corev1.EnvVar, error) {
+	cfg := &apiserver.Config{
+		Namespace:     args.Source.Namespace,
+		Resources:     make([]apiserver.ResourceWatch, 0, len(args.Source.Spec.Resources)),
+		ResourceOwner: args.Source.Spec.ResourceOwner,
+		EventMode:     args.Source.Spec.EventMode,
 	}
 
-	return []corev1.EnvVar{{
-		Name:  "SINK_URI",
-		Value: sinkURI,
+	for _, r := range args.Source.Spec.Resources {
+		gv, err := schema.ParseGroupVersion(r.APIVersion)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse APIVersion: %w", err)
+		}
+		gvr, _ := meta.UnsafeGuessKindToResource(gv.WithKind(r.Kind))
+
+		rw := apiserver.ResourceWatch{GVR: gvr}
+
+		if r.LabelSelector != nil {
+			selector, _ := metav1.LabelSelectorAsSelector(r.LabelSelector)
+			rw.LabelSelector = selector.String()
+		}
+
+		cfg.Resources = append(cfg.Resources, rw)
+	}
+
+	config := "{}"
+	if b, err := json.Marshal(cfg); err == nil {
+		config = string(b)
+	}
+
+	envs := []corev1.EnvVar{{
+		Name:  "K_SINK",
+		Value: args.SinkURI,
 	}, {
-		Name:  "MODE",
-		Value: spec.Mode,
+		Name:  "K_SOURCE_CONFIG",
+		Value: config,
 	}, {
-		Name:  "API_VERSION",
-		Value: apiversions,
-	}, {
-		Name:  "KIND",
-		Value: kinds,
-	}, {
-		Name:  "OWNER_API_VERSION",
-		Value: ownerapiversions,
-	}, {
-		Name:  "OWNER_KIND",
-		Value: ownerkinds,
-	}, {
-		Name:  "CONTROLLER",
-		Value: controlled,
-	}, {
-		Name:  "SELECTOR",
-		Value: selectors,
+		Name:  "SYSTEM_NAMESPACE",
+		Value: system.Namespace(),
 	}, {
 		Name: "NAMESPACE",
 		ValueFrom: &corev1.EnvVarSource{
@@ -147,15 +141,10 @@ func makeEnv(sinkURI, loggingConfig, metricsConfig string, spec *v1alpha1.ApiSer
 		},
 	}, {
 		Name:  "NAME",
-		Value: name,
+		Value: args.Source.Name,
 	}, {
 		Name:  "METRICS_DOMAIN",
 		Value: "knative.dev/eventing",
-	}, {
-		Name:  "K_METRICS_CONFIG",
-		Value: metricsConfig,
-	}, {
-		Name:  "K_LOGGING_CONFIG",
-		Value: loggingConfig,
 	}}
+	return append(envs, args.Configs.ToEnvVars()...), nil
 }

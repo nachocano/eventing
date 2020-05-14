@@ -17,9 +17,7 @@ limitations under the License.
 package multichannelfanout
 
 import (
-	"bytes"
 	"context"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -29,10 +27,17 @@ import (
 	bindingshttp "github.com/cloudevents/sdk-go/v2/protocol/http"
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 	"knative.dev/pkg/apis"
 
-	eventingduck "knative.dev/eventing/pkg/apis/duck/v1alpha1"
+	eventingduck "knative.dev/eventing/pkg/apis/duck/v1beta1"
+	"knative.dev/eventing/pkg/channel"
 	"knative.dev/eventing/pkg/channel/fanout"
+)
+
+var (
+	// The httptest.Server's host name will replace this value in all ChannelConfigs.
+	replaceDomain = apis.HTTP("replaceDomain")
 )
 
 func TestNewMessageHandler(t *testing.T) {
@@ -59,7 +64,13 @@ func TestNewMessageHandler(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := NewMessageHandler(context.TODO(), zap.NewNop(), tc.config)
+			logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+			_, err := NewMessageHandler(
+				context.TODO(),
+				logger,
+				channel.NewMessageDispatcher(logger),
+				tc.config,
+			)
 			if tc.createErr != "" {
 				if err == nil {
 					t.Errorf("Expected NewHandler error: '%v'. Actual nil", tc.createErr)
@@ -108,14 +119,20 @@ func TestCopyMessageHandlerWithNewConfig(t *testing.T) {
 	if cmp.Equal(orig, updated) {
 		t.Errorf("Orig and updated must be different")
 	}
-	h, err := NewMessageHandler(context.TODO(), zap.NewNop(), orig)
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	h, err := NewMessageHandler(
+		context.TODO(),
+		logger,
+		channel.NewMessageDispatcher(logger),
+		orig,
+	)
 	if err != nil {
 		t.Errorf("Unable to create handler, %v", err)
 	}
 	if !cmp.Equal(h.config, orig) {
 		t.Errorf("Incorrect config. Expected '%v'. Actual '%v'", orig, h.config)
 	}
-	newH, err := h.CopyWithNewConfig(context.TODO(), updated)
+	newH, err := h.CopyWithNewConfig(context.TODO(), channel.EventDispatcherConfig{}, updated)
 	if err != nil {
 		t.Errorf("Unable to copy handler: %v", err)
 	}
@@ -178,7 +195,8 @@ func TestConfigDiffMessageHandler(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			h, err := NewMessageHandler(context.TODO(), zap.NewNop(), tc.orig)
+			logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+			h, err := NewMessageHandler(context.TODO(), logger, channel.NewMessageDispatcher(logger), tc.orig)
 			if err != nil {
 				t.Errorf("Unable to create handler: %v", err)
 			}
@@ -267,13 +285,14 @@ func TestServeHTTPMessageHandler(t *testing.T) {
 	}
 	for n, tc := range testCases {
 		t.Run(n, func(t *testing.T) {
-			server := httptest.NewServer(&fakeHandler{statusCode: tc.respStatusCode})
+			server := httptest.NewServer(fakeHandler(tc.respStatusCode))
 			defer server.Close()
 
 			// Rewrite the replaceDomains to call the server we just created.
 			replaceDomains(tc.config, server.URL[7:])
 
-			h, err := NewMessageHandler(context.TODO(), zap.NewNop(), tc.config)
+			logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+			h, err := NewMessageHandler(context.TODO(), logger, channel.NewMessageDispatcher(logger), tc.config)
 			if err != nil {
 				t.Fatalf("Unexpected NewHandler error: '%v'", err)
 			}
@@ -286,27 +305,50 @@ func TestServeHTTPMessageHandler(t *testing.T) {
 			event.SetData(cloudevents.ApplicationJSON, "{}")
 
 			req := httptest.NewRequest(http.MethodPost, "http://"+tc.key+"/", nil)
-			err = bindingshttp.WriteRequest(ctx, binding.ToMessage(&event), req, binding.TransformerFactories{})
+			err = bindingshttp.WriteRequest(ctx, binding.ToMessage(&event), req)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			res := httptest.ResponseRecorder{}
+			responseRecorder := httptest.ResponseRecorder{}
 
-			h.ServeHTTP(&res, req)
-			if res.Code != tc.expectedStatusCode {
-				t.Errorf("Unexpected status code. Expected %v, actual %v", tc.expectedStatusCode, res.Code)
+			h.ServeHTTP(&responseRecorder, req)
+			response := responseRecorder.Result()
+			if response.StatusCode != tc.expectedStatusCode {
+				t.Errorf("Unexpected status code. Expected %v, actual %v", tc.expectedStatusCode, response.StatusCode)
 			}
 
 			var message binding.Message
-			if res.Body != nil {
-				message = bindingshttp.NewMessage(res.Header(), ioutil.NopCloser(bytes.NewReader(res.Body.Bytes())))
+			if response.Body != nil {
+				message = bindingshttp.NewMessage(response.Header, response.Body)
 			} else {
-				message = bindingshttp.NewMessage(res.Header(), nil)
+				message = bindingshttp.NewMessage(response.Header, nil)
 			}
 			if message.ReadEncoding() != binding.EncodingUnknown {
 				t.Errorf("Expected EncodingUnkwnown. Actual: %v", message.ReadEncoding())
 			}
 		})
+	}
+}
+
+func fakeHandler(statusCode int) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(statusCode)
+		_ = r.Body.Close()
+	}
+}
+
+func replaceDomains(config Config, replacement string) {
+	for i, cc := range config.ChannelConfigs {
+		for j, sub := range cc.FanoutConfig.Subscriptions {
+			if sub.SubscriberURI == replaceDomain {
+				sub.SubscriberURI = apis.HTTP(replacement)
+			}
+			if sub.ReplyURI == replaceDomain {
+				sub.ReplyURI = apis.HTTP(replacement)
+			}
+			cc.FanoutConfig.Subscriptions[j] = sub
+		}
+		config.ChannelConfigs[i] = cc
 	}
 }

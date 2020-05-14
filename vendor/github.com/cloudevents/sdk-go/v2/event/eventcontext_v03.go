@@ -3,6 +3,7 @@ package event
 import (
 	"encoding/json"
 	"fmt"
+	"mime"
 	"sort"
 	"strings"
 
@@ -31,7 +32,6 @@ type EventContextV03 struct {
 	// DataSchema - A link to the schema that the `data` attribute adheres to.
 	SchemaURL *types.URIRef `json:"schemaurl,omitempty"`
 	// GetDataMediaType - A MIME (RFC2046) string describing the media type of `data`.
-	// TODO: Should an empty string assume `application/json`, `application/octet-stream`, or auto-detect the content?
 	DataContentType *string `json:"datacontenttype,omitempty"`
 	// DeprecatedDataContentEncoding describes the content encoding for the `data` attribute. Valid: nil, `Base64`.
 	DataContentEncoding *string `json:"datacontentencoding,omitempty"`
@@ -124,7 +124,7 @@ func (ec EventContextV03) AsV03() *EventContextV03 {
 	return &ec
 }
 
-// AsV04 implements EventContextConverter.AsV04
+// AsV1 implements EventContextConverter.AsV1
 func (ec EventContextV03) AsV1() *EventContextV1 {
 	ret := EventContextV1{
 		ID:              ec.ID,
@@ -161,8 +161,8 @@ func (ec EventContextV03) AsV1() *EventContextV1 {
 // As of Feb 26, 2019, commit 17c32ea26baf7714ad027d9917d03d2fff79fc7e
 // + https://github.com/cloudevents/spec/pull/387 -> datacontentencoding
 // + https://github.com/cloudevents/spec/pull/406 -> subject
-func (ec EventContextV03) Validate() error {
-	errors := []string(nil)
+func (ec EventContextV03) Validate() ValidationError {
+	errors := map[string]error{}
 
 	// type
 	// Type: String
@@ -172,7 +172,7 @@ func (ec EventContextV03) Validate() error {
 	//  SHOULD be prefixed with a reverse-DNS name. The prefixed domain dictates the organization which defines the semantics of this event type.
 	eventType := strings.TrimSpace(ec.Type)
 	if eventType == "" {
-		errors = append(errors, "type: MUST be a non-empty string")
+		errors["type"] = fmt.Errorf("MUST be a non-empty string")
 	}
 
 	// source
@@ -181,7 +181,7 @@ func (ec EventContextV03) Validate() error {
 	//  REQUIRED
 	source := strings.TrimSpace(ec.Source.String())
 	if source == "" {
-		errors = append(errors, "source: REQUIRED")
+		errors["source"] = fmt.Errorf("REQUIRED")
 	}
 
 	// subject
@@ -192,7 +192,7 @@ func (ec EventContextV03) Validate() error {
 	if ec.Subject != nil {
 		subject := strings.TrimSpace(*ec.Subject)
 		if subject == "" {
-			errors = append(errors, "subject: if present, MUST be a non-empty string")
+			errors["subject"] = fmt.Errorf("if present, MUST be a non-empty string")
 		}
 	}
 
@@ -204,7 +204,7 @@ func (ec EventContextV03) Validate() error {
 	//  MUST be unique within the scope of the producer
 	id := strings.TrimSpace(ec.ID)
 	if id == "" {
-		errors = append(errors, "id: MUST be a non-empty string")
+		errors["id"] = fmt.Errorf("MUST be a non-empty string")
 
 		// no way to test "MUST be unique within the scope of the producer"
 	}
@@ -225,7 +225,7 @@ func (ec EventContextV03) Validate() error {
 		schemaURL := strings.TrimSpace(ec.SchemaURL.String())
 		// empty string is not RFC 3986 compatible.
 		if schemaURL == "" {
-			errors = append(errors, "schemaurl: if present, MUST adhere to the format specified in RFC 3986")
+			errors["schemaurl"] = fmt.Errorf("if present, MUST adhere to the format specified in RFC 3986")
 		}
 	}
 
@@ -237,8 +237,12 @@ func (ec EventContextV03) Validate() error {
 	if ec.DataContentType != nil {
 		dataContentType := strings.TrimSpace(*ec.DataContentType)
 		if dataContentType == "" {
-			// TODO: need to test for RFC 2046
-			errors = append(errors, "datacontenttype: if present, MUST adhere to the format specified in RFC 2046")
+			errors["datacontenttype"] = fmt.Errorf("if present, MUST adhere to the format specified in RFC 2046")
+		} else {
+			_, _, err := mime.ParseMediaType(dataContentType)
+			if err != nil {
+				errors["datacontenttype"] = fmt.Errorf("if present, MUST adhere to the format specified in RFC 2046")
+			}
 		}
 	}
 
@@ -251,13 +255,12 @@ func (ec EventContextV03) Validate() error {
 	if ec.DataContentEncoding != nil {
 		dataContentEncoding := strings.ToLower(strings.TrimSpace(*ec.DataContentEncoding))
 		if dataContentEncoding != Base64 {
-			// TODO: need to test for RFC 2046
-			errors = append(errors, "datacontentencoding: if present, MUST adhere to RFC 2045 Section 6.1")
+			errors["datacontentencoding"] = fmt.Errorf("if present, MUST adhere to RFC 2045 Section 6.1")
 		}
 	}
 
 	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, "\n"))
+		return errors
 	}
 	return nil
 }

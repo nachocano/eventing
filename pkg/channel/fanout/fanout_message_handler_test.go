@@ -21,35 +21,57 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
 	bindingshttp "github.com/cloudevents/sdk-go/v2/protocol/http"
+	"go.opencensus.io/trace"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"knative.dev/pkg/apis"
 
-	eventingduck "knative.dev/eventing/pkg/apis/duck/v1alpha1"
+	eventingduck "knative.dev/eventing/pkg/apis/duck/v1beta1"
 	"knative.dev/eventing/pkg/channel"
+)
+
+// Domains used in subscriptions, which will be replaced by the real domains of the started HTTP
+// servers.
+var (
+	replaceSubscriber = apis.HTTP("replaceSubscriber")
+	replaceReplier    = apis.HTTP("replaceReplier")
 )
 
 func TestFanoutMessageHandler_ServeHTTP(t *testing.T) {
 	testCases := map[string]struct {
-		receiverFunc   channel.UnbufferedMessageReceiverFunc
-		timeout        time.Duration
-		subs           []eventingduck.SubscriberSpec
-		subscriber     func(http.ResponseWriter, *http.Request)
-		channel        func(http.ResponseWriter, *http.Request)
-		expectedStatus int
-		asyncHandler   bool
-		skip           string
+		receiverFunc        channel.UnbufferedMessageReceiverFunc
+		timeout             time.Duration
+		subs                []eventingduck.SubscriberSpec
+		subscriber          func(http.ResponseWriter, *http.Request)
+		subscriberReqs      int
+		replier             func(http.ResponseWriter, *http.Request)
+		replierReqs         int
+		expectedStatus      int
+		asyncExpectedStatus int
 	}{
 		"rejected by receiver": {
-			receiverFunc: func(context.Context, channel.ChannelReference, binding.Message, []binding.TransformerFactory, http.Header) error {
+			receiverFunc: func(context.Context, channel.ChannelReference, binding.Message, []binding.Transformer, http.Header) error {
 				return errors.New("rejected by test-receiver")
 			},
-			expectedStatus: http.StatusInternalServerError,
+			expectedStatus:      http.StatusInternalServerError,
+			asyncExpectedStatus: http.StatusInternalServerError,
+		},
+		"receiver has span": {
+			receiverFunc: func(ctx context.Context, _ channel.ChannelReference, _ binding.Message, _ []binding.Transformer, _ http.Header) error {
+				if span := trace.FromContext(ctx); span == nil {
+					return errors.New("missing span")
+				}
+				return nil
+			},
+			expectedStatus:      http.StatusAccepted,
+			asyncExpectedStatus: http.StatusAccepted,
 		},
 		"fanout times out": {
 			timeout: time.Millisecond,
@@ -62,28 +84,34 @@ func TestFanoutMessageHandler_ServeHTTP(t *testing.T) {
 				time.Sleep(time.Second)
 				writer.WriteHeader(http.StatusAccepted)
 			},
-			expectedStatus: http.StatusInternalServerError,
+			subscriberReqs:      1,
+			expectedStatus:      http.StatusInternalServerError,
+			asyncExpectedStatus: http.StatusAccepted,
 		},
 		"zero subs succeed": {
-			subs:           []eventingduck.SubscriberSpec{},
-			expectedStatus: http.StatusAccepted,
+			subs:                []eventingduck.SubscriberSpec{},
+			expectedStatus:      http.StatusAccepted,
+			asyncExpectedStatus: http.StatusAccepted,
 		},
 		"empty sub succeeds": {
 			subs: []eventingduck.SubscriberSpec{
 				{},
 			},
-			expectedStatus: http.StatusAccepted,
+			expectedStatus:      http.StatusAccepted,
+			asyncExpectedStatus: http.StatusAccepted,
 		},
 		"reply fails": {
 			subs: []eventingduck.SubscriberSpec{
 				{
-					ReplyURI: replaceChannel,
+					ReplyURI: replaceReplier,
 				},
 			},
-			channel: func(writer http.ResponseWriter, _ *http.Request) {
+			replier: func(writer http.ResponseWriter, _ *http.Request) {
 				writer.WriteHeader(http.StatusNotFound)
 			},
-			expectedStatus: http.StatusInternalServerError,
+			replierReqs:         1,
+			expectedStatus:      http.StatusInternalServerError,
+			asyncExpectedStatus: http.StatusAccepted,
 		},
 		"subscriber fails": {
 			subs: []eventingduck.SubscriberSpec{
@@ -94,160 +122,200 @@ func TestFanoutMessageHandler_ServeHTTP(t *testing.T) {
 			subscriber: func(writer http.ResponseWriter, _ *http.Request) {
 				writer.WriteHeader(http.StatusNotFound)
 			},
-			expectedStatus: http.StatusInternalServerError,
+			subscriberReqs:      1,
+			expectedStatus:      http.StatusInternalServerError,
+			asyncExpectedStatus: http.StatusAccepted,
 		},
 		"subscriber succeeds, result fails": {
 			subs: []eventingduck.SubscriberSpec{
 				{
 					SubscriberURI: replaceSubscriber,
-					ReplyURI:      replaceChannel,
+					ReplyURI:      replaceReplier,
 				},
 			},
 			subscriber: callableSucceed,
-			channel: func(writer http.ResponseWriter, _ *http.Request) {
+			replier: func(writer http.ResponseWriter, _ *http.Request) {
 				writer.WriteHeader(http.StatusForbidden)
 			},
-			expectedStatus: http.StatusInternalServerError,
+			subscriberReqs:      1,
+			replierReqs:         1,
+			expectedStatus:      http.StatusInternalServerError,
+			asyncExpectedStatus: http.StatusAccepted,
 		},
 		"one sub succeeds": {
 			subs: []eventingduck.SubscriberSpec{
 				{
 					SubscriberURI: replaceSubscriber,
-					ReplyURI:      replaceChannel,
+					ReplyURI:      replaceReplier,
 				},
 			},
 			subscriber: callableSucceed,
-			channel: func(writer http.ResponseWriter, _ *http.Request) {
+			replier: func(writer http.ResponseWriter, _ *http.Request) {
 				writer.WriteHeader(http.StatusAccepted)
 			},
-			expectedStatus: http.StatusAccepted,
+			subscriberReqs:      1,
+			replierReqs:         1,
+			expectedStatus:      http.StatusAccepted,
+			asyncExpectedStatus: http.StatusAccepted,
 		},
 		"one sub succeeds, one sub fails": {
 			subs: []eventingduck.SubscriberSpec{
 				{
 					SubscriberURI: replaceSubscriber,
-					ReplyURI:      replaceChannel,
+					ReplyURI:      replaceReplier,
 				},
 				{
 					SubscriberURI: replaceSubscriber,
-					ReplyURI:      replaceChannel,
+					ReplyURI:      replaceReplier,
 				},
 			},
-			subscriber:     callableSucceed,
-			channel:        (&succeedOnce{}).handler,
-			expectedStatus: http.StatusInternalServerError,
+			subscriber:          callableSucceed,
+			replier:             (&succeedOnce{}).handler,
+			subscriberReqs:      2,
+			replierReqs:         2,
+			expectedStatus:      http.StatusInternalServerError,
+			asyncExpectedStatus: http.StatusAccepted,
 		},
 		"all subs succeed": {
 			subs: []eventingduck.SubscriberSpec{
 				{
 					SubscriberURI: replaceSubscriber,
-					ReplyURI:      replaceChannel,
+					ReplyURI:      replaceReplier,
 				},
 				{
 					SubscriberURI: replaceSubscriber,
-					ReplyURI:      replaceChannel,
+					ReplyURI:      replaceReplier,
 				},
 				{
 					SubscriberURI: replaceSubscriber,
-					ReplyURI:      replaceChannel,
+					ReplyURI:      replaceReplier,
 				},
 			},
 			subscriber: callableSucceed,
-			channel: func(writer http.ResponseWriter, _ *http.Request) {
+			replier: func(writer http.ResponseWriter, _ *http.Request) {
 				writer.WriteHeader(http.StatusAccepted)
 			},
-			expectedStatus: http.StatusAccepted,
-		},
-		"all subs succeed with async handler": {
-			subs: []eventingduck.SubscriberSpec{
-				{
-					SubscriberURI: replaceSubscriber,
-					ReplyURI:      replaceChannel,
-				},
-				{
-					SubscriberURI: replaceSubscriber,
-					ReplyURI:      replaceChannel,
-				},
-				{
-					SubscriberURI: replaceSubscriber,
-					ReplyURI:      replaceChannel,
-				},
-			},
-			subscriber: callableSucceed,
-			channel: func(writer http.ResponseWriter, _ *http.Request) {
-				writer.WriteHeader(http.StatusAccepted)
-			},
-			expectedStatus: http.StatusAccepted,
-			asyncHandler:   true,
+			subscriberReqs:      3,
+			replierReqs:         3,
+			expectedStatus:      http.StatusAccepted,
+			asyncExpectedStatus: http.StatusAccepted,
 		},
 	}
 	for n, tc := range testCases {
-		t.Run(n, func(t *testing.T) {
-			if tc.skip != "" {
-				t.Skip(tc.skip)
-			}
-			callableServer := httptest.NewServer(&fakeHandler{
-				handler: tc.subscriber,
-			})
-			defer callableServer.Close()
-			channelServer := httptest.NewServer(&fakeHandler{
-				handler: tc.channel,
-			})
-			defer channelServer.Close()
-
-			// Rewrite the subs to use the servers we just started.
-			subs := make([]eventingduck.SubscriberSpec, 0)
-			for _, sub := range tc.subs {
-				if sub.SubscriberURI == replaceSubscriber {
-					sub.SubscriberURI = apis.HTTP(callableServer.URL[7:]) // strip the leading 'http://'
-				}
-				if sub.ReplyURI == replaceChannel {
-					sub.ReplyURI = apis.HTTP(channelServer.URL[7:]) // strip the leading 'http://'
-				}
-				subs = append(subs, sub)
-			}
-
-			h, err := NewMessageHandler(zap.NewNop(), Config{Subscriptions: subs})
-			if err != nil {
-				t.Fatalf("NewHandler failed. Error:%s", err)
-			}
-			if tc.asyncHandler {
-				h.config.AsyncHandler = true
-			}
-			if tc.receiverFunc != nil {
-				receiver, err := channel.NewMessageReceiver(tc.receiverFunc, zap.NewNop())
-				if err != nil {
-					t.Fatalf("NewEventReceiver failed. Error:%s", err)
-				}
-				h.receiver = receiver
-			}
-			if tc.timeout != 0 {
-				h.timeout = tc.timeout
-			} else {
-				// Reasonable timeout for the tests.
-				h.timeout = 100 * time.Millisecond
-			}
-
-			event := makeCloudEventNew()
-			req := httptest.NewRequest(http.MethodPost, "http://channelname.channelnamespace/", nil)
-
-			ctx := context.Background()
-			err = bindingshttp.WriteRequest(ctx, binding.ToMessage(&event), req, binding.TransformerFactories{})
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			resp := httptest.ResponseRecorder{}
-
-			h.ServeHTTP(&resp, req)
-			if resp.Code != tc.expectedStatus {
-				t.Errorf("Unexpected status code. Expected %v, Actual %v", tc.expectedStatus, resp.Code)
-			}
+		t.Run("sync - "+n, func(t *testing.T) {
+			testFanoutMessageHandler(t, false, tc.receiverFunc, tc.timeout, tc.subs, tc.subscriber, tc.subscriberReqs, tc.replier, tc.replierReqs, tc.expectedStatus)
+		})
+		t.Run("async - "+n, func(t *testing.T) {
+			testFanoutMessageHandler(t, true, tc.receiverFunc, tc.timeout, tc.subs, tc.subscriber, tc.subscriberReqs, tc.replier, tc.replierReqs, tc.asyncExpectedStatus)
 		})
 	}
 }
 
-func makeCloudEventNew() cloudevents.Event {
+func testFanoutMessageHandler(t *testing.T, async bool, receiverFunc channel.UnbufferedMessageReceiverFunc, timeout time.Duration, inSubs []eventingduck.SubscriberSpec, subscriberHandler func(http.ResponseWriter, *http.Request), subscriberReqs int, replierHandler func(http.ResponseWriter, *http.Request), replierReqs int, expectedStatus int) {
+	var subscriberServerWg *sync.WaitGroup
+	if subscriberReqs != 0 {
+		subscriberServerWg = &sync.WaitGroup{}
+		subscriberServerWg.Add(subscriberReqs)
+	}
+	subscriberServer := httptest.NewServer(&fakeHandlerWithWg{
+		wg:      subscriberServerWg,
+		handler: subscriberHandler,
+	})
+	defer subscriberServer.Close()
+
+	var replierServerWg *sync.WaitGroup
+	if replierReqs != 0 {
+		replierServerWg = &sync.WaitGroup{}
+		replierServerWg.Add(replierReqs)
+	}
+	replyServer := httptest.NewServer(&fakeHandlerWithWg{
+		wg:      replierServerWg,
+		handler: replierHandler,
+	})
+	defer replyServer.Close()
+
+	// Rewrite the subs to use the servers we just started.
+	subs := make([]eventingduck.SubscriberSpec, 0)
+	for _, sub := range inSubs {
+		if sub.SubscriberURI == replaceSubscriber {
+			sub.SubscriberURI = apis.HTTP(subscriberServer.URL[7:]) // strip the leading 'http://'
+		}
+		if sub.ReplyURI == replaceReplier {
+			sub.ReplyURI = apis.HTTP(replyServer.URL[7:]) // strip the leading 'http://'
+		}
+		subs = append(subs, sub)
+	}
+
+	logger, err := zap.NewDevelopment(zap.AddStacktrace(zap.WarnLevel))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h, err := NewMessageHandler(
+		logger,
+		channel.NewMessageDispatcher(logger),
+		Config{
+			Subscriptions: subs,
+			AsyncHandler:  async,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewHandler failed. Error:%s", err)
+	}
+
+	if receiverFunc != nil {
+		receiver, err := channel.NewMessageReceiver(receiverFunc, logger)
+		if err != nil {
+			t.Fatalf("NewEventReceiver failed. Error:%s", err)
+		}
+		h.receiver = receiver
+	}
+	if timeout != 0 {
+		h.timeout = timeout
+	} else {
+		// Reasonable timeout for the tests.
+		h.timeout = 10000 * time.Second
+	}
+
+	event := makeCloudEvent()
+	reqCtx, _ := trace.StartSpan(context.TODO(), "bla")
+	req := httptest.NewRequest(http.MethodPost, "http://channelname.channelnamespace/", nil).WithContext(reqCtx)
+
+	ctx := context.Background()
+	err = bindingshttp.WriteRequest(ctx, binding.ToMessage(&event), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := httptest.ResponseRecorder{}
+
+	h.ServeHTTP(&resp, req)
+	if resp.Code != expectedStatus {
+		t.Errorf("Unexpected status code. Expected %v, Actual %v", expectedStatus, resp.Code)
+	}
+
+	if subscriberServerWg != nil {
+		subscriberServerWg.Wait()
+	}
+	if replierServerWg != nil {
+		replierServerWg.Wait()
+	}
+}
+
+type fakeHandlerWithWg struct {
+	wg      *sync.WaitGroup
+	handler func(http.ResponseWriter, *http.Request)
+}
+
+func (h *fakeHandlerWithWg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	_ = r.Body.Close()
+	h.handler(w, r)
+	if h.wg != nil {
+		h.wg.Done()
+	}
+}
+
+func makeCloudEvent() cloudevents.Event {
 	event := cloudevents.NewEvent(cloudevents.VersionV1)
 	event.SetType("com.example.someevent")
 	event.SetSource("/mycontext")
@@ -255,4 +323,26 @@ func makeCloudEventNew() cloudevents.Event {
 	event.SetExtension("comexampleextension", "value")
 	event.SetData(cloudevents.ApplicationXML, "<much wow=\"xml\"/>")
 	return event
+}
+
+type succeedOnce struct {
+	called atomic.Bool
+}
+
+func (s *succeedOnce) handler(w http.ResponseWriter, _ *http.Request) {
+	if s.called.CAS(false, true) {
+		w.WriteHeader(http.StatusAccepted)
+	} else {
+		w.WriteHeader(http.StatusForbidden)
+	}
+}
+
+func callableSucceed(writer http.ResponseWriter, _ *http.Request) {
+	writer.Header().Set("ce-specversion", cloudevents.VersionV1)
+	writer.Header().Set("ce-type", "com.example.someotherevent")
+	writer.Header().Set("ce-source", "/myothercontext")
+	writer.Header().Set("ce-id", "B234-1234-1234")
+	writer.Header().Set("Content-Type", cloudevents.ApplicationJSON)
+	writer.WriteHeader(http.StatusOK)
+	_, _ = writer.Write([]byte("{}"))
 }

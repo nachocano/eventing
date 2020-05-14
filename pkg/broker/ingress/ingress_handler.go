@@ -23,11 +23,14 @@ import (
 	"net/url"
 	"time"
 
-	cloudevents "github.com/cloudevents/sdk-go/v1"
-	"github.com/cloudevents/sdk-go/v1/cloudevents/client"
+	cloudevents "github.com/cloudevents/sdk-go"
+	"github.com/cloudevents/sdk-go/pkg/cloudevents/client"
+	"go.opencensus.io/trace"
 	"go.uber.org/zap"
+	"k8s.io/apimachinery/pkg/types"
 
 	"knative.dev/eventing/pkg/broker"
+	"knative.dev/eventing/pkg/tracing"
 	"knative.dev/eventing/pkg/utils"
 )
 
@@ -75,6 +78,22 @@ func (h *Handler) Start(ctx context.Context) error {
 }
 
 func (h *Handler) receive(ctx context.Context, event cloudevents.Event, resp *cloudevents.EventResponse) error {
+	brokerName := types.NamespacedName{
+		Name:      h.BrokerName,
+		Namespace: h.Namespace,
+	}
+	ctx, span := trace.StartSpan(ctx, tracing.BrokerMessagingDestination(brokerName))
+	defer span.End()
+
+	if span.IsRecordingEvents() {
+		span.AddAttributes(
+			tracing.MessagingSystemAttribute,
+			tracing.MessagingProtocolHTTP,
+			tracing.BrokerMessagingDestinationAttribute(brokerName),
+			tracing.MessagingMessageIDAttribute(event.ID()),
+		)
+	}
+
 	// Setting the extension as a string as the CloudEvents sdk does not support non-string extensions.
 	event.SetExtension(broker.EventArrivalTime, cloudevents.Timestamp{Time: time.Now()})
 	tctx := cloudevents.HTTPTransportContextFrom(ctx)
@@ -90,9 +109,9 @@ func (h *Handler) receive(ctx context.Context, event cloudevents.Event, resp *cl
 	}
 
 	reporterArgs := &ReportArgs{
-		ns:        h.Namespace,
-		broker:    h.BrokerName,
-		eventType: event.Type(),
+		Namespace: h.Namespace,
+		Broker:    h.BrokerName,
+		EventType: event.Type(),
 	}
 
 	if h.Defaulter != nil {

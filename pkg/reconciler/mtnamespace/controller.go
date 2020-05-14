@@ -19,14 +19,12 @@ package mtnamespace
 import (
 	"context"
 
+	"github.com/kelseyhightower/envconfig"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes/scheme"
-	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/record"
 	eventingclient "knative.dev/eventing/pkg/client/injection/client"
-	client "knative.dev/pkg/client/injection/kube/client"
+	"knative.dev/eventing/pkg/reconciler/mtnamespace/resources"
+	namespacereconciler "knative.dev/pkg/client/injection/kube/reconciler/core/v1/namespace"
 	"knative.dev/pkg/configmap"
 	"knative.dev/pkg/controller"
 	"knative.dev/pkg/logging"
@@ -35,14 +33,17 @@ import (
 	"knative.dev/pkg/client/injection/kube/informers/core/v1/namespace"
 )
 
-const (
-	// ReconcilerName is the name of the reconciler
-	ReconcilerName = "Namespace" // TODO: Namespace is not a very good name for this controller.
+type envConfig struct {
+	InjectionDefault bool `envconfig:"BROKER_INJECTION_DEFAULT" default:"false"`
+}
 
-	// controllerAgentName is the string used by this controller to identify
-	// itself when creating events.
-	controllerAgentName = "knative-eventing-namespace-controller"
-)
+func onByDefault(labels map[string]string) bool {
+	return labels[resources.InjectionLabelKey] == resources.InjectionDisabledLabelValue
+}
+
+func offByDefault(labels map[string]string) bool {
+	return labels[resources.InjectionLabelKey] != resources.InjectionEnabledLabelValue
+}
 
 // NewController initializes the controller and is called by the generated code
 // Registers event handlers to enqueue events
@@ -51,37 +52,27 @@ func NewController(
 	cmw configmap.Watcher,
 ) *controller.Impl {
 
-	logger := logging.FromContext(ctx)
 	namespaceInformer := namespace.Get(ctx)
 	brokerInformer := broker.Get(ctx)
 
-	recorder := controller.GetEventRecorder(ctx)
-	if recorder == nil {
-		// Create event broadcaster
-		logger.Debug("Creating event broadcaster")
-		eventBroadcaster := record.NewBroadcaster()
-		watches := []watch.Interface{
-			eventBroadcaster.StartLogging(logger.Named("event-broadcaster").Infof),
-			eventBroadcaster.StartRecordingToSink(
-				&v1.EventSinkImpl{Interface: client.Get(ctx).CoreV1().Events("")}),
-		}
-		recorder = eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
-		go func() {
-			<-ctx.Done()
-			for _, w := range watches {
-				w.Stop()
-			}
-		}()
+	var filter labelFilter
+
+	var env envConfig
+	if err := envconfig.Process("", &env); err != nil {
+		logging.FromContext(ctx).Fatalf("mtnamespace was unable to process environment: %v", err)
+	} else if env.InjectionDefault {
+		filter = onByDefault
+	} else {
+		filter = offByDefault
 	}
 
 	r := &Reconciler{
 		eventingClientSet: eventingclient.Get(ctx),
-		namespaceLister:   namespaceInformer.Lister(),
+		filter:            filter,
 		brokerLister:      brokerInformer.Lister(),
-		recorder:          recorder,
 	}
 
-	impl := controller.NewImpl(r, logging.FromContext(ctx), ReconcilerName)
+	impl := namespacereconciler.NewImpl(ctx, r)
 	// TODO: filter label selector: on InjectionEnabledLabels()
 
 	logging.FromContext(ctx).Info("Setting up event handlers")

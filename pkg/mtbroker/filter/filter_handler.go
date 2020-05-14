@@ -24,7 +24,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	cloudevents "github.com/cloudevents/sdk-go/v1"
+	cloudevents "github.com/cloudevents/sdk-go"
+	"go.opencensus.io/trace"
 	"go.uber.org/zap"
 	eventingv1alpha1 "knative.dev/eventing/pkg/apis/eventing/v1alpha1"
 	"knative.dev/eventing/pkg/broker"
@@ -32,8 +33,8 @@ import (
 	"knative.dev/eventing/pkg/kncloudevents"
 	"knative.dev/eventing/pkg/logging"
 	"knative.dev/eventing/pkg/reconciler/trigger/path"
+	"knative.dev/eventing/pkg/tracing"
 	"knative.dev/eventing/pkg/utils"
-	pkgtracing "knative.dev/pkg/tracing"
 )
 
 const (
@@ -84,16 +85,20 @@ type FilterResult string
 // NewHandler creates a new Handler and its associated MessageReceiver. The caller is responsible for
 // Start()ing the returned Handler.
 func NewHandler(logger *zap.Logger, triggerLister eventinglisters.TriggerLister, reporter StatsReporter, port int) (*Handler, error) {
-	httpTransport, err := cloudevents.NewHTTPTransport(cloudevents.WithBinaryEncoding(), cloudevents.WithMiddleware(pkgtracing.HTTPSpanIgnoringPaths(readyz)), cloudevents.WithPort(port))
-	if err != nil {
-		return nil, err
-	}
-
 	connectionArgs := kncloudevents.ConnectionArgs{
 		MaxIdleConns:        defaultMaxIdleConnections,
 		MaxIdleConnsPerHost: defaultMaxIdleConnectionsPerHost,
 	}
-	ceClient, err := kncloudevents.NewDefaultClientGivenHttpTransport(httpTransport, &connectionArgs)
+	httpTransport, err := cloudevents.NewHTTPTransport(
+		cloudevents.WithBinaryEncoding(),
+		cloudevents.WithPort(port),
+		cloudevents.WithHTTPTransport(connectionArgs.NewDefaultHTTPTransport()),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	ceClient, err := kncloudevents.NewDefaultHTTPClient(httpTransport)
 	if err != nil {
 		return nil, err
 	}
@@ -179,6 +184,18 @@ func (r *Handler) serveHTTP(ctx context.Context, event cloudevents.Event, resp *
 	if err != nil {
 		r.logger.Info("Unable to parse path as a trigger", zap.Error(err), zap.String("path", tctx.URI))
 		return errors.New("unable to parse path as a Trigger")
+	}
+
+	ctx, span := trace.StartSpan(ctx, tracing.TriggerMessagingDestination(triggerRef.NamespacedName))
+	defer span.End()
+
+	if span.IsRecordingEvents() {
+		span.AddAttributes(
+			tracing.MessagingSystemAttribute,
+			tracing.MessagingProtocolHTTP,
+			tracing.TriggerMessagingDestinationAttribute(triggerRef.NamespacedName),
+			tracing.MessagingMessageIDAttribute(event.ID()),
+		)
 	}
 
 	// Remove the TTL attribute that is used by the Broker.
@@ -337,10 +354,8 @@ func (r *Handler) filterEventByAttributes(ctx context.Context, attrs map[string]
 		"datacontentencoding": event.DeprecatedDataContentEncoding(),
 	}
 	ext := event.Extensions()
-	if ext != nil {
-		for k, v := range ext {
-			ce[k] = v
-		}
+	for k, v := range ext {
+		ce[k] = v
 	}
 
 	for k, v := range attrs {

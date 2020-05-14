@@ -24,7 +24,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	cloudevents "github.com/cloudevents/sdk-go/v1"
+	cloudevents "github.com/cloudevents/sdk-go"
+	"go.opencensus.io/trace"
 	"go.uber.org/zap"
 
 	eventingv1alpha1 "knative.dev/eventing/pkg/apis/eventing/v1alpha1"
@@ -33,6 +34,7 @@ import (
 	"knative.dev/eventing/pkg/kncloudevents"
 	"knative.dev/eventing/pkg/logging"
 	"knative.dev/eventing/pkg/reconciler/trigger/path"
+	"knative.dev/eventing/pkg/tracing"
 	"knative.dev/eventing/pkg/utils"
 )
 
@@ -184,6 +186,18 @@ func (r *Handler) serveHTTP(ctx context.Context, event cloudevents.Event, resp *
 		return errors.New("unable to parse path as a Trigger")
 	}
 
+	ctx, span := trace.StartSpan(ctx, tracing.TriggerMessagingDestination(triggerRef.NamespacedName))
+	defer span.End()
+
+	if span.IsRecordingEvents() {
+		span.AddAttributes(
+			tracing.MessagingSystemAttribute,
+			tracing.MessagingProtocolHTTP,
+			tracing.TriggerMessagingDestinationAttribute(triggerRef.NamespacedName),
+			tracing.MessagingMessageIDAttribute(event.ID()),
+		)
+	}
+
 	// Remove the TTL attribute that is used by the Broker.
 	ttl, err := broker.GetTTL(event.Context)
 	if err != nil {
@@ -239,10 +253,10 @@ func (r *Handler) sendEvent(ctx context.Context, tctx cloudevents.HTTPTransportC
 	}
 
 	reportArgs := &ReportArgs{
-		ns:         t.Namespace,
-		trigger:    t.Name,
-		broker:     t.Spec.Broker,
-		filterType: triggerFilterAttribute(t.Spec.Filter, "type"),
+		Namespace:  t.Namespace,
+		Trigger:    t.Name,
+		Broker:     t.Spec.Broker,
+		FilterType: triggerFilterAttribute(t.Spec.Filter, "type"),
 	}
 
 	subscriberURI := t.Status.SubscriberURI
@@ -340,10 +354,8 @@ func (r *Handler) filterEventByAttributes(ctx context.Context, attrs map[string]
 		"datacontentencoding": event.DeprecatedDataContentEncoding(),
 	}
 	ext := event.Extensions()
-	if ext != nil {
-		for k, v := range ext {
-			ce[k] = v
-		}
+	for k, v := range ext {
+		ce[k] = v
 	}
 
 	for k, v := range attrs {

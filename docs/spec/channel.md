@@ -36,7 +36,7 @@ Each Channel implementation is backed by its own CRD, like the
 `InMemoryChannel`. Below is an example for the `InMemoryChannel`:
 
 ```
-apiVersion: messaging.knative.dev/v1alpha1
+apiVersion: messaging.knative.dev/v1beta1
 kind: InMemoryChannel
 metadata:
   name: my-channel
@@ -124,7 +124,7 @@ metadata:
     duck.knative.dev/addressable: "true"
 spec:
   group: messaging.knative.dev
-  version: v1alpha1
+  version: v1beta1
   names:
     kind: InMemoryChannel
     plural: inmemorychannels
@@ -272,10 +272,10 @@ If a Channel receives an event queueing request and is unable to parse a valid
 CloudEvent, then it MUST reject the request.
 
 The Channel MUST pass through all tracing information as CloudEvents attributes.
-In particular, it MUST translate any incoming OpenTracing or B3 headers to the
+In particular, it MUST translate any incoming W3C Tracecontext headers to the
 [Distributed Tracing Extension](https://github.com/cloudevents/spec/blob/v1.0/extensions/distributed-tracing.md).
 The Channel SHOULD sample and write traces to the location specified in
-[`config-tracing`](https://github.com/cloudevents/spec/blob/v1.0/extensions/distributed-tracing.md).
+[`config-tracing`](https://github.com/knative/eventing/blob/master/config/config-tracing.yaml).
 
 ##### HTTP
 

@@ -24,15 +24,16 @@ import (
 	"knative.dev/eventing/pkg/broker"
 	"knative.dev/pkg/metrics/metricskey"
 	"knative.dev/pkg/metrics/metricstest"
+	_ "knative.dev/pkg/metrics/testing"
 )
 
 func TestStatsReporter(t *testing.T) {
 	setup()
 	args := &ReportArgs{
-		ns:         "testns",
-		trigger:    "testtrigger",
-		broker:     "testbroker",
-		filterType: "testeventtype",
+		Namespace:  "testns",
+		Trigger:    "testtrigger",
+		Broker:     "testbroker",
+		FilterType: "testeventtype",
 	}
 
 	r := NewStatsReporter("testcontainer", "testpod")
@@ -85,10 +86,10 @@ func TestReporterEmptySourceAndTypeFilter(t *testing.T) {
 	setup()
 
 	args := &ReportArgs{
-		ns:         "testns",
-		trigger:    "testtrigger",
-		broker:     "testbroker",
-		filterType: "",
+		Namespace:  "testns",
+		Trigger:    "testtrigger",
+		Broker:     "testbroker",
+		FilterType: "",
 	}
 
 	r := NewStatsReporter("testcontainer", "testpod")

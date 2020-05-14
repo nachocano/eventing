@@ -17,14 +17,15 @@ limitations under the License.
 // Package fanout provides an http.Handler that takes in one request and fans it out to N other
 // requests, based on a list of Subscriptions. Logically, it represents all the Subscriptions to a
 // single Knative Channel.
-// It will normally be used in conjunction with multichannelfanout.Handler, which contains multiple
-// fanout.Handlers, each corresponding to a single Knative Channel.
+// It will normally be used in conjunction with multichannelfanout.MessageHandler, which contains multiple
+// fanout.MessageHandler, each corresponding to a single Knative Channel.
 package fanout
 
 import (
 	"context"
 	"errors"
 	nethttp "net/http"
+	"net/url"
 	"time"
 
 	"github.com/cloudevents/sdk-go/v2/binding"
@@ -32,16 +33,30 @@ import (
 	"go.opencensus.io/trace"
 	"go.uber.org/zap"
 
-	eventingduck "knative.dev/eventing/pkg/apis/duck/v1alpha1"
+	eventingduck "knative.dev/eventing/pkg/apis/duck/v1beta1"
 	"knative.dev/eventing/pkg/channel"
 )
+
+const (
+	defaultTimeout = 15 * time.Minute
+
+	eventBufferSize = 500
+)
+
+// Config for a fanout.MessageHandler.
+type Config struct {
+	Subscriptions []eventingduck.SubscriberSpec `json:"subscriptions"`
+	// AsyncHandler controls whether the Subscriptions are called synchronous or asynchronously.
+	// It is expected to be false when used as a sidecar.
+	AsyncHandler bool `json:"asyncHandler,omitempty"`
+}
 
 // Handler is a http.Handler that takes a single request in and fans it out to N other servers.
 type MessageHandler struct {
 	config Config
 
 	receiver   *channel.MessageReceiver
-	dispatcher *channel.MessageDispatcherImpl
+	dispatcher channel.MessageDispatcher
 
 	// TODO: Plumb context through the receiver and dispatcher and use that to store the timeout,
 	// rather than a member variable.
@@ -50,12 +65,12 @@ type MessageHandler struct {
 	logger *zap.Logger
 }
 
-// NewHandler creates a new fanout.Handler.
-func NewMessageHandler(logger *zap.Logger, config Config) (*MessageHandler, error) {
+// NewHandler creates a new fanout.MessageHandler.
+func NewMessageHandler(logger *zap.Logger, messageDispatcher channel.MessageDispatcher, config Config) (*MessageHandler, error) {
 	handler := &MessageHandler{
 		logger:     logger,
 		config:     config,
-		dispatcher: channel.NewMessageDispatcherFromConfig(logger, config.DispatcherConfig),
+		dispatcher: messageDispatcher,
 		timeout:    defaultTimeout,
 	}
 	// The receiver function needs to point back at the handler itself, so set it up after
@@ -68,21 +83,48 @@ func NewMessageHandler(logger *zap.Logger, config Config) (*MessageHandler, erro
 	return handler, nil
 }
 
-func createMessageReceiverFunction(f *MessageHandler) func(context.Context, channel.ChannelReference, binding.Message, []binding.TransformerFactory, nethttp.Header) error {
+func createMessageReceiverFunction(f *MessageHandler) func(context.Context, channel.ChannelReference, binding.Message, []binding.Transformer, nethttp.Header) error {
 	if f.config.AsyncHandler {
-		return func(ctx context.Context, _ channel.ChannelReference, message binding.Message, transformers []binding.TransformerFactory, additionalHeaders nethttp.Header) error {
+		return func(ctx context.Context, _ channel.ChannelReference, message binding.Message, transformers []binding.Transformer, additionalHeaders nethttp.Header) error {
+			if len(f.config.Subscriptions) == 0 {
+				// Nothing to do here, finish the message and return
+				_ = message.Finish(nil)
+				return nil
+			}
+
 			parentSpan := trace.FromContext(ctx)
-			go func() {
+			// Message buffering here is done before starting the dispatch goroutine
+			// Because the message could be closed before the buffering happens
+			bufferedMessage, err := buffering.CopyMessage(ctx, message, transformers...)
+			if err != nil {
+				return err
+			}
+			// We don't need the original message anymore
+			_ = message.Finish(nil)
+			go func(m binding.Message, h nethttp.Header, s *trace.Span) {
 				// Run async dispatch with background context.
-				ctx = trace.NewContext(context.Background(), parentSpan)
+				ctx = trace.NewContext(context.Background(), s)
 				// Any returned error is already logged in f.dispatch().
-				_ = f.dispatch(ctx, message, transformers, additionalHeaders)
-			}()
+				_ = f.dispatch(ctx, m, h)
+			}(bufferedMessage, additionalHeaders, parentSpan)
 			return nil
 		}
 	}
-	return func(ctx context.Context, _ channel.ChannelReference, message binding.Message, transformers []binding.TransformerFactory, additionalHeaders nethttp.Header) error {
-		return f.dispatch(ctx, message, transformers, additionalHeaders)
+	return func(ctx context.Context, _ channel.ChannelReference, message binding.Message, transformers []binding.Transformer, additionalHeaders nethttp.Header) error {
+		if len(f.config.Subscriptions) == 0 {
+			// Nothing to do here, finish the message and return
+			_ = message.Finish(nil)
+			return nil
+		}
+
+		// We buffer the message to send it several times
+		bufferedMessage, err := buffering.CopyMessage(ctx, message, transformers...)
+		if err != nil {
+			return err
+		}
+		// We don't need the original message anymore
+		_ = message.Finish(nil)
+		return f.dispatch(ctx, bufferedMessage, additionalHeaders)
 	}
 }
 
@@ -92,16 +134,8 @@ func (f *MessageHandler) ServeHTTP(response nethttp.ResponseWriter, request *net
 
 // dispatch takes the event, fans it out to each subscription in f.config. If all the fanned out
 // events return successfully, then return nil. Else, return an error.
-func (f *MessageHandler) dispatch(ctx context.Context, originalMessage binding.Message, transformers []binding.TransformerFactory, additionalHeaders nethttp.Header) error {
+func (f *MessageHandler) dispatch(ctx context.Context, bufferedMessage binding.Message, additionalHeaders nethttp.Header) error {
 	subs := len(f.config.Subscriptions)
-
-	// We buffer the message to send it several times
-	bufferedMessage, err := buffering.CopyMessage(ctx, originalMessage, transformers...)
-	if err != nil {
-		return err
-	}
-	// We don't need the original message anymore
-	_ = originalMessage.Finish(nil)
 
 	// Bind the lifecycle of the buffered message to the number of subs
 	bufferedMessage = buffering.WithAcksBeforeFinish(bufferedMessage, subs)
@@ -132,5 +166,17 @@ func (f *MessageHandler) dispatch(ctx context.Context, originalMessage binding.M
 // makeFanoutRequest sends the request to exactly one subscription. It handles both the `call` and
 // the `sink` portions of the subscription.
 func (f *MessageHandler) makeFanoutRequest(ctx context.Context, message binding.Message, additionalHeaders nethttp.Header, sub eventingduck.SubscriberSpec) error {
-	return f.dispatcher.DispatchMessageWithDelivery(ctx, message, additionalHeaders, sub.SubscriberURI.String(), sub.ReplyURI.String(), &channel.DeliveryOptions{DeadLetterSink: sub.DeadLetterSinkURI.String()})
+	var destination *url.URL
+	if sub.SubscriberURI != nil {
+		destination = sub.SubscriberURI.URL()
+	}
+	var reply *url.URL
+	if sub.ReplyURI != nil {
+		reply = sub.ReplyURI.URL()
+	}
+	var deadLetter *url.URL
+	if sub.Delivery != nil && sub.Delivery.DeadLetterSink != nil && sub.Delivery.DeadLetterSink.URI != nil {
+		deadLetter = sub.Delivery.DeadLetterSink.URI.URL()
+	}
+	return f.dispatcher.DispatchMessage(ctx, message, additionalHeaders, destination, reply, deadLetter)
 }
