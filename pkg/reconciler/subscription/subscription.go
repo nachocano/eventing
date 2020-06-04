@@ -37,8 +37,8 @@ import (
 
 	eventingduckv1alpha1 "knative.dev/eventing/pkg/apis/duck/v1alpha1"
 	eventingduckv1beta1 "knative.dev/eventing/pkg/apis/duck/v1beta1"
-	"knative.dev/eventing/pkg/apis/flows/v1alpha1"
 	"knative.dev/eventing/pkg/apis/messaging"
+	"knative.dev/eventing/pkg/apis/messaging/v1alpha1"
 	"knative.dev/eventing/pkg/apis/messaging/v1beta1"
 	subscriptionreconciler "knative.dev/eventing/pkg/client/injection/reconciler/messaging/v1beta1/subscription"
 	listers "knative.dev/eventing/pkg/client/listers/messaging/v1beta1"
@@ -91,7 +91,6 @@ var _ subscriptionreconciler.Finalizer = (*Reconciler)(nil)
 // ReconcileKind implements Interface.ReconcileKind.
 func (r *Reconciler) ReconcileKind(ctx context.Context, subscription *v1beta1.Subscription) pkgreconciler.Event {
 	subscription.Status.InitializeConditions()
-	subscription.Status.ObservedGeneration = subscription.Generation
 
 	// Find the channel for this subscription.
 	channel, err := r.getChannel(ctx, subscription)

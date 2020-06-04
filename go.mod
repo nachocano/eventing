@@ -1,6 +1,6 @@
 module knative.dev/eventing
 
-go 1.13
+go 1.14
 
 require (
 	contrib.go.opencensus.io/exporter/stackdriver v0.13.1 // indirect
@@ -39,8 +39,8 @@ require (
 	k8s.io/apiserver v0.17.6
 	k8s.io/client-go v11.0.1-0.20190805182717-6502b5e7b1b5+incompatible
 	k8s.io/utils v0.0.0-20200124190032-861946025e34
-	knative.dev/pkg v0.0.0-20200527173759-2d1a04d1ff82
-	knative.dev/test-infra v0.0.0-20200527185659-fc87694eb879
+	knative.dev/pkg v0.0.0-20200603222317-b79e4a24ca50
+	knative.dev/test-infra v0.0.0-20200604135317-9be2b638d932
 	sigs.k8s.io/yaml v1.2.0
 )
 

@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	sourcesv1alpha2 "knative.dev/eventing/pkg/apis/sources/v1alpha2"
-	pkgResources "knative.dev/eventing/pkg/reconciler/namespace/resources"
+	pkgResources "knative.dev/eventing/pkg/reconciler/mtnamespace/resources"
 	eventingtesting "knative.dev/eventing/pkg/reconciler/testing"
 	"knative.dev/eventing/test/lib"
 	"knative.dev/eventing/test/lib/resources"
@@ -141,8 +141,13 @@ func TestApiServerSource(t *testing.T) {
 		loggerPodName := fmt.Sprintf("%s-%s", baseLoggerPodName, tc.name)
 		tc.spec.Sink = duckv1.Destination{Ref: resources.ServiceKRef(loggerPodName)}
 
-		loggerPod := resources.EventLoggerPod(loggerPodName)
+		loggerPod := resources.EventRecordPod(loggerPodName)
 		client.CreatePodOrFail(loggerPod, lib.WithService(loggerPodName))
+		targetTracker, err := client.NewEventInfoStore(loggerPodName, t.Logf)
+		if err != nil {
+			t.Fatalf("Pod tracker failed: %v", err)
+		}
+		defer targetTracker.Cleanup()
 
 		apiServerSource := eventingtesting.NewApiServerSource(
 			fmt.Sprintf("%s-%s", baseApiServerSourceName, tc.name),
@@ -163,13 +168,19 @@ func TestApiServerSource(t *testing.T) {
 		//                we can add a json matcher to improve it in the future.
 
 		if tc.expected == "" {
-			if err := client.CheckLogEmpty(loggerPodName, 10*time.Second); err != nil {
-				t.Fatalf("Log is not empty in logger pod %q: %v", loggerPodName, err)
+			time.Sleep(10 * time.Second)
+			ev, _, err := targetTracker.Find(lib.ValidEvFunc(lib.MatchAllEvent))
+			if err != nil {
+				t.Fatalf("Saw error looking for events: %v", err)
+			}
+			if len(ev) != 0 {
+				t.Fatalf("Log is not empty in logger pod %q: %d events seen", loggerPodName, len(ev))
 			}
 
 		} else {
-			if err := client.CheckLog(loggerPodName, lib.CheckerContains(tc.expected)); err != nil {
-				t.Fatalf("String %q does not appear in logs of logger pod %q: %v", tc.expected, loggerPodName, err)
+			err = targetTracker.WaitMatchSourceData("", tc.expected, 1, -1)
+			if err != nil {
+				t.Fatalf("Error watching for data %s event in pod %s: %v", tc.expected, loggerPodName, err)
 			}
 		}
 	}
@@ -224,7 +235,7 @@ func TestApiServerSourceV1Alpha2EventTypes(t *testing.T) {
 				// TODO change sink to be a non-Broker one once we revisit EventType https://github.com/knative/eventing/issues/2750
 			}),
 	)
-	apiServerSource.Spec.Sink = duckv1.Destination{Ref: &duckv1.KReference{APIVersion: "eventing.knative.dev/v1alpha1", Kind: "Broker", Name: pkgResources.DefaultBrokerName, Namespace: client.Namespace}}
+	apiServerSource.Spec.Sink = duckv1.Destination{Ref: &duckv1.KReference{APIVersion: "eventing.knative.dev/v1beta1", Kind: "Broker", Name: pkgResources.DefaultBrokerName, Namespace: client.Namespace}}
 
 	client.CreateApiServerSourceOrFail(apiServerSource)
 
@@ -232,7 +243,7 @@ func TestApiServerSourceV1Alpha2EventTypes(t *testing.T) {
 	client.WaitForAllTestResourcesReadyOrFail()
 
 	// verify that EventTypes were created.
-	eventTypes, err := client.Eventing.EventingV1alpha1().EventTypes(client.Namespace).List(metav1.ListOptions{})
+	eventTypes, err := client.Eventing.EventingV1beta1().EventTypes(client.Namespace).List(metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("Error retrieving EventTypes: %v", err)
 	}

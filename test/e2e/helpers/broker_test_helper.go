@@ -22,17 +22,15 @@ import (
 	"strings"
 	"testing"
 
-	"knative.dev/eventing/pkg/apis/eventing"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"knative.dev/eventing/pkg/apis/eventing/v1alpha1"
+	"knative.dev/eventing/pkg/apis/eventing/v1beta1"
 	"knative.dev/eventing/test/lib"
 	"knative.dev/eventing/test/lib/cloudevents"
 	"knative.dev/eventing/test/lib/resources"
 )
 
 const (
-	any          = v1alpha1.TriggerAnyFilter
+	any          = v1beta1.TriggerAnyFilter
 	eventType1   = "type1"
 	eventType2   = "type2"
 	eventSource1 = "source1"
@@ -67,12 +65,6 @@ type BrokerCreator func(client *lib.Client) string
 // ChannelBasedBrokerCreator creates a BrokerCreator that creates a broker based on the channel parameter.
 func ChannelBasedBrokerCreator(channel metav1.TypeMeta, brokerClass string) BrokerCreator {
 	return func(client *lib.Client) string {
-
-		if brokerClass == eventing.ChannelBrokerClassValue {
-			// create required RBAC resources including ServiceAccounts and ClusterRoleBindings for Brokers.
-			client.CreateRBACResourcesForBrokers()
-		}
-
 		brokerName := strings.ToLower(channel.Kind)
 
 		// create a ConfigMap used by the broker.
@@ -211,19 +203,11 @@ func TestBrokerWithManyTriggers(t *testing.T, brokerCreator BrokerCreator, shoul
 			for _, event := range test.eventsToReceive {
 				triggerName := name("trigger", event.context.Type, event.context.Source, event.context.Extensions)
 				subscriberName := name("dumper", event.context.Type, event.context.Source, event.context.Extensions)
-				if test.v1beta1 {
-					client.CreateTriggerOrFailV1Beta1(triggerName,
-						resources.WithSubscriberServiceRefForTriggerV1Beta1(subscriberName),
-						resources.WithAttributesTriggerFilterV1Beta1(event.context.Source, event.context.Type, event.context.Extensions),
-						resources.WithBrokerV1Beta1(brokerName),
-					)
-				} else {
-					client.CreateTriggerOrFail(triggerName,
-						resources.WithSubscriberServiceRefForTrigger(subscriberName),
-						getTriggerFilterOption(test.deprecatedTriggerFilter, event.context),
-						resources.WithBroker(brokerName),
-					)
-				}
+				client.CreateTriggerOrFailV1Beta1(triggerName,
+					resources.WithSubscriberServiceRefForTriggerV1Beta1(subscriberName),
+					resources.WithAttributesTriggerFilterV1Beta1(event.context.Source, event.context.Type, event.context.Extensions),
+					resources.WithBrokerV1Beta1(brokerName))
+
 			}
 
 			// Wait for all test resources to become ready before sending the events.
@@ -276,14 +260,6 @@ func TestBrokerWithManyTriggers(t *testing.T, brokerCreator BrokerCreator, shoul
 				}
 			}
 		})
-	}
-}
-
-func getTriggerFilterOption(deprecatedTriggerFilter bool, context eventContext) resources.TriggerOption {
-	if deprecatedTriggerFilter {
-		return resources.WithDeprecatedSourceAndTypeTriggerFilter(context.Source, context.Type)
-	} else {
-		return resources.WithAttributesTriggerFilter(context.Source, context.Type, context.Extensions)
 	}
 }
 

@@ -51,9 +51,17 @@ var (
 						Name:       "natss-channel",
 					},
 				},
+				"mynamespace3": {
+					BrokerClass: "mynamespace3class",
+					KReference: &duckv1.KReference{
+						APIVersion: "v1",
+						Kind:       "ConfigMap",
+						Name:       "natss-channel",
+					},
+				},
 			},
 			ClusterDefault: &config.ClassAndKRef{
-				BrokerClass: eventing.ChannelBrokerClassValue,
+				BrokerClass: eventing.MTChannelBrokerClassValue,
 				KReference: &duckv1.KReference{
 					APIVersion: "v1",
 					Kind:       "ConfigMap",
@@ -74,7 +82,7 @@ func TestBrokerSetDefaults(t *testing.T) {
 			expected: Broker{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						eventing.BrokerClassKey: eventing.ChannelBrokerClassValue,
+						eventing.BrokerClassKey: eventing.MTChannelBrokerClassValue,
 					},
 				},
 				Spec: BrokerSpec{
@@ -91,7 +99,7 @@ func TestBrokerSetDefaults(t *testing.T) {
 			expected: Broker{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						eventing.BrokerClassKey: eventing.ChannelBrokerClassValue,
+						eventing.BrokerClassKey: eventing.MTChannelBrokerClassValue,
 					},
 				},
 				Spec: BrokerSpec{
@@ -126,7 +134,7 @@ func TestBrokerSetDefaults(t *testing.T) {
 			expected: Broker{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						eventing.BrokerClassKey: eventing.ChannelBrokerClassValue,
+						eventing.BrokerClassKey: eventing.MTChannelBrokerClassValue,
 					},
 				},
 				Spec: BrokerSpec{
@@ -145,7 +153,7 @@ func TestBrokerSetDefaults(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "mynamespace",
 					Annotations: map[string]string{
-						eventing.BrokerClassKey: eventing.ChannelBrokerClassValue,
+						eventing.BrokerClassKey: eventing.MTChannelBrokerClassValue,
 					},
 				},
 				Spec: BrokerSpec{
@@ -153,6 +161,27 @@ func TestBrokerSetDefaults(t *testing.T) {
 						Kind:       "ConfigMap",
 						Namespace:  "knative-eventing",
 						Name:       "kafka-channel",
+						APIVersion: "v1",
+					},
+				},
+			},
+		},
+		"no config, uses namespace broker config, defaults namespace, cluster class": {
+			initial: Broker{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "mynamespace3"},
+			},
+			expected: Broker{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "mynamespace3",
+					Annotations: map[string]string{
+						eventing.BrokerClassKey: "mynamespace3class",
+					},
+				},
+				Spec: BrokerSpec{
+					Config: &duckv1.KReference{
+						Kind:       "ConfigMap",
+						Namespace:  "mynamespace3",
+						Name:       "natss-channel",
 						APIVersion: "v1",
 					},
 				},
@@ -173,6 +202,35 @@ func TestBrokerSetDefaults(t *testing.T) {
 					Config: &duckv1.KReference{
 						Kind:       "ConfigMap",
 						Namespace:  "knative-eventing",
+						Name:       "natss-channel",
+						APIVersion: "v1",
+					},
+				},
+			},
+		},
+		"config, missing namespace, defaulted": {
+			initial: Broker{
+				ObjectMeta: metav1.ObjectMeta{Name: "rando", Namespace: "randons"},
+				Spec: BrokerSpec{
+					Config: &duckv1.KReference{
+						Kind:       "ConfigMap",
+						Name:       "natss-channel",
+						APIVersion: "v1",
+					},
+				},
+			},
+			expected: Broker{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "rando",
+					Namespace: "randons",
+					Annotations: map[string]string{
+						eventing.BrokerClassKey: "MTChannelBasedBroker",
+					},
+				},
+				Spec: BrokerSpec{
+					Config: &duckv1.KReference{
+						Kind:       "ConfigMap",
+						Namespace:  "randons",
 						Name:       "natss-channel",
 						APIVersion: "v1",
 					},

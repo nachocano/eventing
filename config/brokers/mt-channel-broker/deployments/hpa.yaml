@@ -3,11 +3,13 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: broker-ingress-hpa
   namespace: knative-eventing
+  labels:
+    eventing.knative.dev/release: devel
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: broker-ingress
+    name: mt-broker-ingress
   minReplicas: 1
   maxReplicas: 10
   metrics:
@@ -23,11 +25,13 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: broker-filter-hpa
   namespace: knative-eventing
+  labels:
+    eventing.knative.dev/release: devel
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: broker-filter
+    name: mt-broker-filter
   minReplicas: 1
   maxReplicas: 10
   metrics:

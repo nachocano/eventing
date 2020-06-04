@@ -28,6 +28,12 @@ fi
 
 source $(dirname $0)/../vendor/knative.dev/test-infra/scripts/library.sh
 
+# Compute _example hash for all configmaps.
+for file in "${REPO_ROOT_DIR}"/config/core/configmaps/*.yaml
+do
+  go run "${REPO_ROOT_DIR}/vendor/knative.dev/pkg/configmap/hash-gen" "$file"
+done
+
 CODEGEN_PKG=${CODEGEN_PKG:-$(cd ${REPO_ROOT_DIR}; ls -d -1 $(dirname $0)/../vendor/k8s.io/code-generator 2>/dev/null || echo ../../../k8s.io/code-generator)}
 
 KNATIVE_CODEGEN_PKG=${KNATIVE_CODEGEN_PKG:-$(cd ${REPO_ROOT_DIR}; ls -d -1 $(dirname $0)/../vendor/knative.dev/pkg 2>/dev/null || echo ../pkg)}
@@ -39,7 +45,7 @@ chmod +x ${CODEGEN_PKG}/generate-groups.sh
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
 ${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
   knative.dev/eventing/pkg/client knative.dev/eventing/pkg/apis \
-  "eventing:v1alpha1 eventing:v1beta1 messaging:v1alpha1 messaging:v1beta1 flows:v1alpha1 flows:v1beta1 sources:v1alpha1 sources:v1alpha2 configs:v1alpha1" \
+  "eventing:v1beta1 messaging:v1alpha1 messaging:v1beta1 flows:v1beta1 sources:v1alpha1 sources:v1alpha2 configs:v1alpha1" \
   --go-header-file ${REPO_ROOT_DIR}/hack/boilerplate/boilerplate.go.txt
 
 # Deep copy config
@@ -59,7 +65,7 @@ ${CODEGEN_PKG}/generate-groups.sh "deepcopy" \
 chmod +x ${KNATIVE_CODEGEN_PKG}/hack/generate-knative.sh
 ${KNATIVE_CODEGEN_PKG}/hack/generate-knative.sh "injection" \
   knative.dev/eventing/pkg/client knative.dev/eventing/pkg/apis \
-  "eventing:v1alpha1 eventing:v1beta1 messaging:v1alpha1 messaging:v1beta1 flows:v1alpha1 flows:v1beta1 sources:v1alpha1 sources:v1alpha2 duck:v1alpha1 duck:v1beta1 configs:v1alpha1" \
+  "eventing:v1beta1 messaging:v1alpha1 messaging:v1beta1 flows:v1beta1 sources:v1alpha1 sources:v1alpha2 duck:v1alpha1 duck:v1beta1 configs:v1alpha1" \
   --go-header-file ${REPO_ROOT_DIR}/hack/boilerplate/boilerplate.go.txt
 
 # Make sure our dependencies are up-to-date

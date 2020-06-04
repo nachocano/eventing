@@ -19,6 +19,7 @@ limitations under the License.
 package tools
 
 import (
+	_ "knative.dev/pkg/configmap/hash-gen"
 	_ "knative.dev/pkg/hack"
 	_ "knative.dev/pkg/testutils/clustermanager/perf-tests"
 	_ "knative.dev/test-infra/scripts"

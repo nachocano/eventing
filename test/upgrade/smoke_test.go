@@ -18,15 +18,15 @@ package upgrade
 import (
 	"testing"
 
-	cloudevents "github.com/cloudevents/sdk-go"
+	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"knative.dev/eventing/test/e2e/helpers"
 )
 
 func runSmokeTest(t *testing.T) {
 	helpers.SingleEventForChannelTestHelper(
 		t,
-		cloudevents.Binary,
-		helpers.SubscriptionV1alpha1,
+		cloudevents.EncodingBinary,
+		helpers.SubscriptionV1beta1,
 		"",
 		channelTestRunner,
 	)

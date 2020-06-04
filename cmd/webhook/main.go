@@ -43,11 +43,7 @@ import (
 
 	defaultconfig "knative.dev/eventing/pkg/apis/config"
 	configsv1alpha1 "knative.dev/eventing/pkg/apis/configs/v1alpha1"
-	"knative.dev/eventing/pkg/apis/eventing"
-	eventingv1alpha1 "knative.dev/eventing/pkg/apis/eventing/v1alpha1"
 	eventingv1beta1 "knative.dev/eventing/pkg/apis/eventing/v1beta1"
-	"knative.dev/eventing/pkg/apis/flows"
-	flowsv1alpha1 "knative.dev/eventing/pkg/apis/flows/v1alpha1"
 	flowsv1beta1 "knative.dev/eventing/pkg/apis/flows/v1beta1"
 	"knative.dev/eventing/pkg/apis/messaging"
 	channeldefaultconfig "knative.dev/eventing/pkg/apis/messaging/config"
@@ -62,10 +58,6 @@ import (
 
 var ourTypes = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
 	// For group eventing.knative.dev.
-	// v1alpha1
-	eventingv1alpha1.SchemeGroupVersion.WithKind("Broker"):    &eventingv1alpha1.Broker{},
-	eventingv1alpha1.SchemeGroupVersion.WithKind("Trigger"):   &eventingv1alpha1.Trigger{},
-	eventingv1alpha1.SchemeGroupVersion.WithKind("EventType"): &eventingv1alpha1.EventType{},
 	// v1beta1
 	eventingv1beta1.SchemeGroupVersion.WithKind("Broker"):    &eventingv1beta1.Broker{},
 	eventingv1beta1.SchemeGroupVersion.WithKind("Trigger"):   &eventingv1beta1.Trigger{},
@@ -93,9 +85,6 @@ var ourTypes = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
 	sourcesv1alpha2.SchemeGroupVersion.WithKind("ContainerSource"): &sourcesv1alpha2.ContainerSource{},
 
 	// For group flows.knative.dev
-	// v1alpha1
-	flowsv1alpha1.SchemeGroupVersion.WithKind("Parallel"): &flowsv1alpha1.Parallel{},
-	flowsv1alpha1.SchemeGroupVersion.WithKind("Sequence"): &flowsv1alpha1.Sequence{},
 	// v1beta1
 	flowsv1beta1.SchemeGroupVersion.WithKind("Parallel"): &flowsv1beta1.Parallel{},
 	flowsv1beta1.SchemeGroupVersion.WithKind("Sequence"): &flowsv1beta1.Sequence{},
@@ -228,12 +217,8 @@ func NewConversionController(ctx context.Context, cmw configmap.Watcher) *contro
 	}
 
 	var (
-		eventingv1alpha1_  = eventingv1alpha1.SchemeGroupVersion.Version
-		eventingv1beta1_   = eventingv1beta1.SchemeGroupVersion.Version
 		messagingv1alpha1_ = messagingv1alpha1.SchemeGroupVersion.Version
 		messagingv1beta1_  = messagingv1beta1.SchemeGroupVersion.Version
-		flowsv1alpha1_     = flowsv1alpha1.SchemeGroupVersion.Version
-		flowsv1beta1_      = flowsv1beta1.SchemeGroupVersion.Version
 		sourcesv1alpha1_   = sourcesv1alpha1.SchemeGroupVersion.Version
 		sourcesv1alpha2_   = sourcesv1alpha2.SchemeGroupVersion.Version
 	)
@@ -244,31 +229,6 @@ func NewConversionController(ctx context.Context, cmw configmap.Watcher) *contro
 
 		// Specify the types of custom resource definitions that should be converted
 		map[schema.GroupKind]conversion.GroupKindConversion{
-			// eventing
-			eventingv1beta1.Kind("Trigger"): {
-				DefinitionName: eventing.TriggersResource.String(),
-				HubVersion:     eventingv1alpha1_,
-				Zygotes: map[string]conversion.ConvertibleObject{
-					eventingv1alpha1_: &eventingv1alpha1.Trigger{},
-					eventingv1beta1_:  &eventingv1beta1.Trigger{},
-				},
-			},
-			eventingv1beta1.Kind("Broker"): {
-				DefinitionName: eventing.BrokersResource.String(),
-				HubVersion:     eventingv1alpha1_,
-				Zygotes: map[string]conversion.ConvertibleObject{
-					eventingv1alpha1_: &eventingv1alpha1.Broker{},
-					eventingv1beta1_:  &eventingv1beta1.Broker{},
-				},
-			},
-			eventingv1beta1.Kind("EventType"): {
-				DefinitionName: eventing.EventTypesResource.String(),
-				HubVersion:     eventingv1alpha1_,
-				Zygotes: map[string]conversion.ConvertibleObject{
-					eventingv1alpha1_: &eventingv1alpha1.EventType{},
-					eventingv1beta1_:  &eventingv1beta1.EventType{},
-				},
-			},
 			// messaging
 			messagingv1beta1.Kind("Channel"): {
 				DefinitionName: messaging.ChannelsResource.String(),
@@ -284,23 +244,6 @@ func NewConversionController(ctx context.Context, cmw configmap.Watcher) *contro
 				Zygotes: map[string]conversion.ConvertibleObject{
 					messagingv1alpha1_: &messagingv1alpha1.InMemoryChannel{},
 					messagingv1beta1_:  &messagingv1beta1.InMemoryChannel{},
-				},
-			},
-			// flows
-			flowsv1beta1.Kind("Sequence"): {
-				DefinitionName: flows.SequenceResource.String(),
-				HubVersion:     flowsv1alpha1_,
-				Zygotes: map[string]conversion.ConvertibleObject{
-					flowsv1alpha1_: &flowsv1alpha1.Sequence{},
-					flowsv1beta1_:  &flowsv1beta1.Sequence{},
-				},
-			},
-			flowsv1beta1.Kind("Parallel"): {
-				DefinitionName: flows.ParallelResource.String(),
-				HubVersion:     flowsv1alpha1_,
-				Zygotes: map[string]conversion.ConvertibleObject{
-					flowsv1alpha1_: &flowsv1alpha1.Parallel{},
-					flowsv1beta1_:  &flowsv1beta1.Parallel{},
 				},
 			},
 			// Sources
@@ -343,7 +286,7 @@ func main() {
 	// Set up a signal context with our webhook options
 	ctx := webhook.WithOptions(signals.NewContext(), webhook.Options{
 		ServiceName: logconfig.WebhookName(),
-		Port:        8443,
+		Port:        webhook.PortFromEnv(8443),
 		// SecretName must match the name of the Secret created in the configuration.
 		SecretName: "eventing-webhook-certs",
 	})
