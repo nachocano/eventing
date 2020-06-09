@@ -25,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"knative.dev/eventing/test/lib"
+	"knative.dev/eventing/test/lib/recordevents"
 	"knative.dev/eventing/test/lib/resources"
 )
 
@@ -59,13 +60,18 @@ func EventTransformationForSubscriptionTestHelper(t *testing.T,
 		if err := eventAfterTransformation.SetData(cloudevents.ApplicationJSON, []byte(transformedEventBody)); err != nil {
 			t.Fatalf("Cannot set the payload of the event: %s", err.Error())
 		}
-		transformationPod := resources.EventTransformationPod(transformationPodName, eventAfterTransformation)
+		transformationPod := resources.EventTransformationPod(
+			transformationPodName,
+			eventAfterTransformation.Type(),
+			eventAfterTransformation.Source(),
+			eventAfterTransformation.Data(),
+		)
 		client.CreatePodOrFail(transformationPod, lib.WithService(transformationPodName))
 
 		// create event logger pod and service as the subscriber
 		recordEventsPod := resources.EventRecordPod(recordEventsPodName)
 		client.CreatePodOrFail(recordEventsPod, lib.WithService(recordEventsPodName))
-		eventTracker, err := client.NewEventInfoStore(recordEventsPodName, t.Logf)
+		eventTracker, err := recordevents.NewEventInfoStore(client, recordEventsPodName)
 		if err != nil {
 			t.Fatalf("Pod tracker failed: %v", err)
 		}
