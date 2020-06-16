@@ -25,6 +25,7 @@ import (
 	pkgResources "knative.dev/eventing/pkg/reconciler/mtnamespace/resources"
 	"knative.dev/eventing/test/lib/recordevents"
 
+	. "github.com/cloudevents/sdk-go/v2/test"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 
@@ -32,76 +33,26 @@ import (
 	"knative.dev/eventing/test/lib/resources"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
 
-	sourcesv1alpha1 "knative.dev/eventing/pkg/apis/sources/v1alpha1"
 	eventingtesting "knative.dev/eventing/pkg/reconciler/testing"
 )
-
-func TestPingSourceV1Alpha1(t *testing.T) {
-	const (
-		sourceName = "e2e-ping-source"
-		// Every 1 minute starting from now
-		schedule = "*/1 * * * *"
-
-		loggerPodName = "e2e-ping-source-logger-pod-v1alpha1"
-	)
-
-	client := setup(t, true)
-	defer tearDown(client)
-
-	// create event logger pod and service
-	loggerPod := resources.EventRecordPod(loggerPodName)
-	client.CreatePodOrFail(loggerPod, lib.WithService(loggerPodName))
-	targetTracker, err := recordevents.NewEventInfoStore(client, loggerPodName)
-	if err != nil {
-		t.Fatalf("Pod tracker failed: %v", err)
-	}
-	defer targetTracker.Cleanup()
-
-	// create cron job source
-	data := fmt.Sprintf("TestPingSource %s", uuid.NewUUID())
-	source := eventingtesting.NewPingSourceV1Alpha1(
-		sourceName,
-		client.Namespace,
-		eventingtesting.WithPingSourceSpec(sourcesv1alpha1.PingSourceSpec{
-			Schedule: schedule,
-			Data:     data,
-			Sink:     &duckv1.Destination{Ref: resources.KnativeRefForService(loggerPodName, client.Namespace)},
-		}),
-	)
-	client.CreatePingSourceV1Alpha1OrFail(source)
-
-	// wait for all test resources to be ready
-	client.WaitForAllTestResourcesReadyOrFail()
-
-	// verify the logger service receives the event and only once
-	err = targetTracker.WaitMatchSourceData(sourcesv1alpha1.PingSourceSource(client.Namespace, sourceName), data, 1, 1)
-	if err != nil {
-		t.Fatalf("Error watching for data %s event in pod %s: %v", data, loggerPodName, err)
-	}
-}
 
 func TestPingSourceV1Alpha2(t *testing.T) {
 	const (
 		sourceName = "e2e-ping-source"
 		// Every 1 minute starting from now
 
-		loggerPodName = "e2e-ping-source-logger-pod-v1alpha2"
+		recordEventPodName = "e2e-ping-source-logger-pod-v1alpha2"
 	)
 
 	client := setup(t, true)
 	defer tearDown(client)
 
 	// create event logger pod and service
-	loggerPod := resources.EventRecordPod(loggerPodName)
-	client.CreatePodOrFail(loggerPod, lib.WithService(loggerPodName))
-	targetTracker, err := recordevents.NewEventInfoStore(client, loggerPodName)
-	if err != nil {
-		t.Fatalf("Pod tracker failed: %v", err)
-	}
-	defer targetTracker.Cleanup()
+	eventTracker, _ := recordevents.StartEventRecordOrFail(client, recordEventPodName)
+	defer eventTracker.Cleanup()
 
 	// create cron job source
-	data := fmt.Sprintf("TestPingSource %s", uuid.NewUUID())
+	data := fmt.Sprintf(`{"msg":"TestPingSource %s"}`, uuid.NewUUID())
 	source := eventingtesting.NewPingSourceV1Alpha2(
 		sourceName,
 		client.Namespace,
@@ -109,7 +60,7 @@ func TestPingSourceV1Alpha2(t *testing.T) {
 			JsonData: data,
 			SourceSpec: duckv1.SourceSpec{
 				Sink: duckv1.Destination{
-					Ref: resources.KnativeRefForService(loggerPodName, client.Namespace),
+					Ref: resources.KnativeRefForService(recordEventPodName, client.Namespace),
 				},
 			},
 		}),
@@ -120,10 +71,10 @@ func TestPingSourceV1Alpha2(t *testing.T) {
 	client.WaitForAllTestResourcesReadyOrFail()
 
 	// verify the logger service receives the event and only once
-	err = targetTracker.WaitMatchSourceData(sourcesv1alpha2.PingSourceSource(client.Namespace, sourceName), data, 1, 1)
-	if err != nil {
-		t.Fatalf("Error watching for data %s event in pod %s: %v", data, loggerPodName, err)
-	}
+	eventTracker.AssertExact(1, recordevents.MatchEvent(
+		HasSource(sourcesv1alpha2.PingSourceSource(client.Namespace, sourceName)),
+		HasData([]byte(data)),
+	))
 }
 
 func TestPingSourceV1Alpha2ResourceScope(t *testing.T) {
@@ -131,23 +82,18 @@ func TestPingSourceV1Alpha2ResourceScope(t *testing.T) {
 		sourceName = "e2e-ping-source"
 		// Every 1 minute starting from now
 
-		loggerPodName = "e2e-ping-source-logger-pod-v1alpha2rs"
+		recordEventPodName = "e2e-ping-source-logger-pod-v1alpha2rs"
 	)
 
 	client := setup(t, true)
 	defer tearDown(client)
 
 	// create event logger pod and service
-	loggerPod := resources.EventRecordPod(loggerPodName)
-	client.CreatePodOrFail(loggerPod, lib.WithService(loggerPodName))
-	targetTracker, err := recordevents.NewEventInfoStore(client, loggerPodName)
-	if err != nil {
-		t.Fatalf("Pod tracker failed: %v", err)
-	}
-	defer targetTracker.Cleanup()
+	eventTracker, _ := recordevents.StartEventRecordOrFail(client, recordEventPodName)
+	defer eventTracker.Cleanup()
 
 	// create cron job source
-	data := fmt.Sprintf("TestPingSource %s", uuid.NewUUID())
+	data := fmt.Sprintf(`{"msg":"TestPingSource %s"}`, uuid.NewUUID())
 	source := eventingtesting.NewPingSourceV1Alpha2(
 		sourceName,
 		client.Namespace,
@@ -156,7 +102,7 @@ func TestPingSourceV1Alpha2ResourceScope(t *testing.T) {
 			JsonData: data,
 			SourceSpec: duckv1.SourceSpec{
 				Sink: duckv1.Destination{
-					Ref: resources.KnativeRefForService(loggerPodName, client.Namespace),
+					Ref: resources.KnativeRefForService(recordEventPodName, client.Namespace),
 				},
 			},
 		}),
@@ -167,10 +113,10 @@ func TestPingSourceV1Alpha2ResourceScope(t *testing.T) {
 	client.WaitForAllTestResourcesReadyOrFail()
 
 	// verify the logger service receives the event and only once
-	err = targetTracker.WaitMatchSourceData(sourcesv1alpha2.PingSourceSource(client.Namespace, sourceName), data, 1, 1)
-	if err != nil {
-		t.Fatalf("Error watching for data %s event in pod %s: %v", data, loggerPodName, err)
-	}
+	eventTracker.AssertExact(1, recordevents.MatchEvent(
+		HasSource(sourcesv1alpha2.PingSourceSource(client.Namespace, sourceName)),
+		HasData([]byte(data)),
+	))
 }
 
 func TestPingSourceV1Alpha2EventTypes(t *testing.T) {
@@ -190,12 +136,11 @@ func TestPingSourceV1Alpha2EventTypes(t *testing.T) {
 	client.WaitForResourceReadyOrFail(pkgResources.DefaultBrokerName, lib.BrokerTypeMeta)
 
 	// Create ping source
-	data := fmt.Sprintf("TestPingSource %s", uuid.NewUUID())
 	source := eventingtesting.NewPingSourceV1Alpha2(
 		sourceName,
 		client.Namespace,
 		eventingtesting.WithPingSourceV1A2Spec(sourcesv1alpha2.PingSourceSpec{
-			JsonData: data,
+			JsonData: fmt.Sprintf(`{"msg":"TestPingSource %s"}`, uuid.NewUUID()),
 			SourceSpec: duckv1.SourceSpec{
 				Sink: duckv1.Destination{
 					// TODO change sink to be a non-Broker one once we revisit EventType https://github.com/knative/eventing/issues/2750
