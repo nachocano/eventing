@@ -33,10 +33,11 @@ import (
 func okConfig() *kle.Config {
 	return &kle.Config{
 		ResourceLock:      "leases",
+		Buckets:           1,
 		LeaseDuration:     15 * time.Second,
 		RenewDeadline:     10 * time.Second,
 		RetryPeriod:       2 * time.Second,
-		EnabledComponents: sets.NewString("controller", "inmemorychannel-dispatcher", "inmemorychannel-controller", "broker-controller"),
+		EnabledComponents: sets.NewString("controller", "inmemorychannel-dispatcher", "inmemorychannel-controller", "broker-controller", "webhook"),
 	}
 }
 
@@ -49,7 +50,7 @@ func okData() map[string]string {
 		"leaseDuration":     "15s",
 		"renewDeadline":     "10s",
 		"retryPeriod":       "2s",
-		"enabledComponents": "controller,inmemorychannel-dispatcher,inmemorychannel-controller,broker-controller",
+		"enabledComponents": "controller,inmemorychannel-dispatcher,inmemorychannel-controller,broker-controller,webhook",
 	}
 }
 
@@ -68,7 +69,7 @@ func TestValidateConfig(t *testing.T) {
 		data: kmeta.UnionMaps(okData(), map[string]string{
 			"enabledComponents": "controller,frobulator",
 		}),
-		err: errors.New(`invalid enabledComponent "frobulator": valid values are ["broker-controller" "controller" "inmemorychannel-controller" "inmemorychannel-dispatcher"]`),
+		err: errors.New(`invalid enabledComponent "frobulator": valid values are ["broker-controller" "controller" "inmemorychannel-controller" "inmemorychannel-dispatcher" "webhook"]`),
 	}, {
 		name: "invalid config",
 		data: kmeta.UnionMaps(okData(), map[string]string{
@@ -101,6 +102,7 @@ func TestServingConfig(t *testing.T) {
 		name: "Default config",
 		want: &kle.Config{
 			ResourceLock:  "leases",
+			Buckets:       1,
 			LeaseDuration: 15 * time.Second,
 			RenewDeadline: 10 * time.Second,
 			RetryPeriod:   2 * time.Second,
@@ -110,6 +112,7 @@ func TestServingConfig(t *testing.T) {
 		name: "Example config",
 		want: &kle.Config{
 			ResourceLock:      "leases",
+			Buckets:           1,
 			LeaseDuration:     15 * time.Second,
 			RenewDeadline:     10 * time.Second,
 			RetryPeriod:       2 * time.Second,
