@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	pkgTest "knative.dev/pkg/test"
 
 	testlib "knative.dev/eventing/test/lib"
 	"knative.dev/eventing/test/lib/resources"
@@ -98,6 +99,12 @@ func NewEventInfoStore(client *testlib.Client, podName string) (*EventInfoStore,
 func StartEventRecordOrFail(client *testlib.Client, podName string) (*EventInfoStore, *corev1.Pod) {
 	eventRecordPod := resources.EventRecordPod(podName)
 	client.CreatePodOrFail(eventRecordPod, testlib.WithService(podName))
+	err := pkgTest.WaitForPodRunning(client.Kube, podName, client.Namespace)
+	if err != nil {
+		client.T.Fatalf("Failed to start the recordevent pod '%s': %v", podName, errors.WithStack(err))
+	}
+	client.WaitForServiceEndpointsOrFail(podName, 1)
+
 	eventTracker, err := NewEventInfoStore(client, podName)
 	if err != nil {
 		client.T.Fatalf("Failed to start the EventInfoStore associated to pod '%s': %v", podName, err)
@@ -227,7 +234,7 @@ func (ei *EventInfoStore) Find(matchers ...EventInfoMatcher) ([]EventInfo, Searc
 func (ei *EventInfoStore) AssertAtLeast(min int, matchers ...EventInfoMatcher) []EventInfo {
 	events, err := ei.waitAtLeastNMatch(AllOf(matchers...), min)
 	if err != nil {
-		ei.tb.Fatalf("Timeout waiting for at least %d matches.\nError: %v", min, errors.WithStack(err))
+		ei.tb.Fatalf("Timeout waiting for at least %d matches.\nError: %+v", min, errors.WithStack(err))
 	}
 	return events
 }
@@ -237,7 +244,7 @@ func (ei *EventInfoStore) AssertAtLeast(min int, matchers ...EventInfoMatcher) [
 func (ei *EventInfoStore) AssertInRange(min int, max int, matchers ...EventInfoMatcher) []EventInfo {
 	events := ei.AssertAtLeast(min, matchers...)
 	if max > 0 && len(events) > max {
-		ei.tb.Fatalf("Assert in range failed: %v", errors.WithStack(fmt.Errorf("expected <= %d events, saw %d", max, len(events))))
+		ei.tb.Fatalf("Assert in range failed: %+v", errors.WithStack(fmt.Errorf("expected <= %d events, saw %d", max, len(events))))
 	}
 
 	return events
@@ -248,11 +255,11 @@ func (ei *EventInfoStore) AssertInRange(min int, max int, matchers ...EventInfoM
 func (ei *EventInfoStore) AssertNot(matchers ...EventInfoMatcher) []EventInfo {
 	res, recentEvents, _, err := ei.Find(matchers...)
 	if err != nil {
-		ei.tb.Fatalf("Unexpected error during find on recordevents '%s': %v", ei.podName, errors.WithStack(err))
+		ei.tb.Fatalf("Unexpected error during find on recordevents '%s': %+v", ei.podName, errors.WithStack(err))
 	}
 
 	if len(res) != 0 {
-		ei.tb.Fatalf("Assert not failed: %v", errors.WithStack(
+		ei.tb.Fatalf("Assert not failed: %+v", errors.WithStack(
 			fmt.Errorf("Unexpected matches on recordevents '%s', found: %v. %s", ei.podName, res, &recentEvents)),
 		)
 	}
