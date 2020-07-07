@@ -22,15 +22,15 @@ source $(dirname $0)/../vendor/knative.dev/test-infra/scripts/release.sh
 readonly EVENTING_CORE_YAML="eventing-core.yaml"
 readonly EVENTING_CRDS_YAML="eventing-crds.yaml"
 readonly CHANNEL_BROKER_YAML="deprecated-channel-broker.yaml"
+readonly SUGAR_CONTROLLER_YAML="eventing-sugar-controller.yaml"
 readonly MT_CHANNEL_BROKER_YAML="mt-channel-broker.yaml"
 readonly IN_MEMORY_CHANNEL="in-memory-channel.yaml"
 readonly PRE_INSTALL_V_0_16="pre-install-to-v0.16.0.yaml"
+readonly POST_INSTALL_V_0_16="post-install-to-v0.16.0.yaml"
 
 declare -A RELEASES
 RELEASES=(
   ["eventing.yaml"]="${EVENTING_CORE_YAML} ${CHANNEL_BROKER_YAML} ${MT_CHANNEL_BROKER_YAML} ${IN_MEMORY_CHANNEL}"
-  # The artifact eventing-upgrade.yaml hosts all the resources necessary to do the upgrade.
-  ["eventing-upgrade.yaml"]="${PRE_INSTALL_V_0_16}"
 )
 readonly RELEASES
 
@@ -52,6 +52,9 @@ function build_release() {
   # Create eventing crds yaml
   ko resolve ${KO_FLAGS} -f config/core/resources/ | "${LABEL_YAML_CMD[@]}" > "${EVENTING_CRDS_YAML}"
 
+  # Create sugar controller yaml
+  ko resolve ${KO_FLAGS} -f config/sugar/ | "${LABEL_YAML_CMD[@]}" > "${SUGAR_CONTROLLER_YAML}"
+
   # Create channel broker yaml
   ko resolve ${KO_FLAGS} -f config/brokers/channel-broker/ | "${LABEL_YAML_CMD[@]}" > "${CHANNEL_BROKER_YAML}"
 
@@ -64,7 +67,10 @@ function build_release() {
   # Create v0.16.0 pre-install job yaml. Upgrades Broker storage version from v1alpha1 to v1beta1.
   ko resolve ${KO_FLAGS} -f config/pre-install/v0.16.0/ | "${LABEL_YAML_CMD[@]}" > "${PRE_INSTALL_V_0_16}"
 
-  local all_yamls=(${EVENTING_CORE_YAML} ${EVENTING_CRDS_YAML} ${CHANNEL_BROKER_YAML} ${MT_CHANNEL_BROKER_YAML} ${IN_MEMORY_CHANNEL} ${PRE_INSTALL_V_0_16})
+  # Create v0.16.0 post-install job yaml. Cleans up old broker resources from deleted namespaced brokers.
+  ko resolve ${KO_FLAGS} -f config/post-install/v0.16.0/ | "${LABEL_YAML_CMD[@]}" > "${POST_INSTALL_V_0_16}"
+
+  local all_yamls=(${EVENTING_CORE_YAML} ${EVENTING_CRDS_YAML} ${SUGAR_CONTROLLER_YAML} ${CHANNEL_BROKER_YAML} ${MT_CHANNEL_BROKER_YAML} ${IN_MEMORY_CHANNEL} ${PRE_INSTALL_V_0_16} ${POST_INSTALL_V_0_16})
 
   # Assemble the release
   for yaml in "${!RELEASES[@]}"; do

@@ -63,6 +63,35 @@ func TestSubscribableTypeConversion(t *testing.T) {
 			Status: SubscribableStatus{},
 		},
 	}, {
+		name: "full configuration no delivery on subscriber",
+		in: &Subscribable{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       "subscribable-name",
+				Namespace:  "subscribable-ns",
+				Generation: 17,
+			},
+			Spec: SubscribableSpec{
+				Subscribers: []SubscriberSpec{
+					{
+						UID:           "uid-1",
+						Generation:    7,
+						SubscriberURI: apis.HTTP("subscriber.example.com"),
+						ReplyURI:      apis.HTTP("reply.example.com"),
+					},
+				},
+			},
+			Status: SubscribableStatus{
+				Subscribers: []SubscriberStatus{
+					{
+						UID:                "status-uid-1",
+						ObservedGeneration: 99,
+						Ready:              corev1.ConditionTrue,
+						Message:            "msg",
+					},
+				},
+			},
+		},
+	}, {
 		name: "full configuration",
 		in: &Subscribable{
 			ObjectMeta: metav1.ObjectMeta{
@@ -146,6 +175,35 @@ func TestSubscribableTypeConversionWithV1(t *testing.T) {
 			Status: eventingv1.SubscribableStatus{},
 		},
 	}, {
+		name: "full configuration - no delivery on subscriber",
+		in: &eventingv1.Subscribable{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       "subscribable-name",
+				Namespace:  "subscribable-ns",
+				Generation: 17,
+			},
+			Spec: eventingv1.SubscribableSpec{
+				Subscribers: []eventingv1.SubscriberSpec{
+					{
+						UID:           "uid-1",
+						Generation:    7,
+						SubscriberURI: apis.HTTP("subscriber.example.com"),
+						ReplyURI:      apis.HTTP("reply.example.com"),
+					},
+				},
+			},
+			Status: eventingv1.SubscribableStatus{
+				Subscribers: []eventingv1.SubscriberStatus{
+					{
+						UID:                "status-uid-1",
+						ObservedGeneration: 99,
+						Ready:              corev1.ConditionTrue,
+						Message:            "msg",
+					},
+				},
+			},
+		},
+	}, {
 		name: "full configuration",
 		in: &eventingv1.Subscribable{
 			ObjectMeta: metav1.ObjectMeta{
@@ -205,5 +263,53 @@ func TestSubscribableTypeConversionWithV1(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestSubscribableSpecConversionBadType(t *testing.T) {
+	good, bad := &SubscribableSpec{}, &SubscribableSpec{}
+
+	if err := good.ConvertTo(context.Background(), bad); err == nil {
+		t.Errorf("ConvertTo() = %#v, wanted error", bad)
+	}
+
+	if err := good.ConvertFrom(context.Background(), bad); err == nil {
+		t.Errorf("ConvertFrom() = %#v, wanted error", good)
+	}
+}
+
+func TestSubscribableStatusConversionBadType(t *testing.T) {
+	good, bad := &SubscribableStatus{}, &SubscribableStatus{}
+
+	if err := good.ConvertTo(context.Background(), bad); err == nil {
+		t.Errorf("ConvertTo() = %#v, wanted error", bad)
+	}
+
+	if err := good.ConvertFrom(context.Background(), bad); err == nil {
+		t.Errorf("ConvertFrom() = %#v, wanted error", good)
+	}
+}
+
+func TestSubscriberSpecConversionBadType(t *testing.T) {
+	good, bad := &SubscriberSpec{}, &SubscriberSpec{}
+
+	if err := good.ConvertTo(context.Background(), bad); err == nil {
+		t.Errorf("ConvertTo() = %#v, wanted error", bad)
+	}
+
+	if err := good.ConvertFrom(context.Background(), bad); err == nil {
+		t.Errorf("ConvertFrom() = %#v, wanted error", good)
+	}
+}
+
+func TestSubscriberStatusConversionBadType(t *testing.T) {
+	good, bad := &SubscriberStatus{}, &SubscriberStatus{}
+
+	if err := good.ConvertTo(context.Background(), bad); err == nil {
+		t.Errorf("ConvertTo() = %#v, wanted error", bad)
+	}
+
+	if err := good.ConvertFrom(context.Background(), bad); err == nil {
+		t.Errorf("ConvertFrom() = %#v, wanted error", good)
 	}
 }

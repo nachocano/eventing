@@ -23,12 +23,10 @@ import (
 	"knative.dev/pkg/injection/sharedmain"
 
 	"knative.dev/eventing/pkg/reconciler/mtbroker"
-	"knative.dev/eventing/pkg/reconciler/mtnamespace"
 )
 
 func main() {
 	sharedmain.Main("mt-broker-controller",
-		mtnamespace.NewController,
 		mtbroker.NewController,
 	)
 }

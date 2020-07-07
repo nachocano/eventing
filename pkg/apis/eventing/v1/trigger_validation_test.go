@@ -55,7 +55,7 @@ var (
 	dependencyAnnotationPath    = fmt.Sprintf("metadata.annotations[%s]", DependencyAnnotation)
 	// Create default broker annotation
 	validInjectionAnnotation   = "enabled"
-	invalidInjectionAnnotation = "disabled"
+	invalidInjectionAnnotation = "wut"
 	injectionAnnotationPath    = fmt.Sprintf("metadata.annotations[%s]", InjectionAnnotation)
 )
 
@@ -199,8 +199,24 @@ func TestTriggerValidation(t *testing.T) {
 					dependencyAnnotationPath + "." + "apiVersion"},
 				Message: "missing field(s)",
 			},
-		},
-		{
+		}, {
+			name: "invalid injection annotation value - deprecated",
+			t: &Trigger{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "test-ns",
+					Annotations: map[string]string{
+						DeprecatedInjectionAnnotation: invalidInjectionAnnotation,
+					}},
+				Spec: TriggerSpec{
+					Broker:     "default",
+					Filter:     validEmptyFilter,
+					Subscriber: validSubscriber,
+				}},
+			want: &apis.FieldError{
+				Paths:   []string{fmt.Sprintf("metadata.annotations[%s]", DeprecatedInjectionAnnotation)},
+				Message: "The provided injection annotation value can only be \"enabled\" or \"disabled\", not \"wut\"",
+			},
+		}, {
 			name: "invalid injection annotation value",
 			t: &Trigger{
 				ObjectMeta: v1.ObjectMeta{
@@ -215,8 +231,31 @@ func TestTriggerValidation(t *testing.T) {
 				}},
 			want: &apis.FieldError{
 				Paths:   []string{injectionAnnotationPath},
-				Message: "The provided injection annotation value can only be \"enabled\", not \"disabled\"",
+				Message: "The provided injection annotation value can only be \"enabled\" or \"disabled\", not \"wut\"",
 			},
+		},
+		{
+			name: "invalid trigger spec, invalid dependency annotation(missing kind, name, apiVersion) and invalid injection",
+			t: &Trigger{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "test-ns",
+					Annotations: map[string]string{
+						DependencyAnnotation: "{}",
+						InjectionAnnotation:  invalidInjectionAnnotation,
+					}},
+				Spec: TriggerSpec{Broker: "default", Subscriber: validSubscriber}},
+			want: func() *apis.FieldError {
+				var errs *apis.FieldError
+				errs = errs.Also(&apis.FieldError{
+					Message: fmt.Sprintf(`The provided injection annotation value can only be "enabled" or "disabled", not "wut"`),
+					Paths:   []string{"metadata.annotations[eventing.knative.dev/injection]"},
+				})
+
+				errs = errs.Also(apis.ErrMissingField("metadata.annotations[knative.dev/dependency].apiVersion"))
+				errs = errs.Also(apis.ErrMissingField("metadata.annotations[knative.dev/dependency].kind"))
+				errs = errs.Also(apis.ErrMissingField("metadata.annotations[knative.dev/dependency].name"))
+				return errs
+			}(),
 		},
 		{
 			name: "valid injection annotation value, non-default broker specified",
@@ -385,12 +424,14 @@ func TestTriggerImmutableFields(t *testing.T) {
 		name: "good (no change)",
 		current: &Trigger{
 			Spec: TriggerSpec{
-				Broker: "broker",
+				Broker:     "broker",
+				Subscriber: validSubscriber,
 			},
 		},
 		original: &Trigger{
 			Spec: TriggerSpec{
-				Broker: "broker",
+				Broker:     "broker",
+				Subscriber: validSubscriber,
 			},
 		},
 		want: nil,
@@ -398,7 +439,8 @@ func TestTriggerImmutableFields(t *testing.T) {
 		name: "new nil is ok",
 		current: &Trigger{
 			Spec: TriggerSpec{
-				Broker: "broker",
+				Broker:     "broker",
+				Subscriber: validSubscriber,
 			},
 		},
 		original: nil,
@@ -407,13 +449,15 @@ func TestTriggerImmutableFields(t *testing.T) {
 		name: "good (filter change)",
 		current: &Trigger{
 			Spec: TriggerSpec{
-				Broker: "broker",
+				Broker:     "broker",
+				Subscriber: validSubscriber,
 			},
 		},
 		original: &Trigger{
 			Spec: TriggerSpec{
-				Broker: "broker",
-				Filter: validAttributesFilter,
+				Broker:     "broker",
+				Filter:     validAttributesFilter,
+				Subscriber: validSubscriber,
 			},
 		},
 		want: nil,
@@ -421,12 +465,14 @@ func TestTriggerImmutableFields(t *testing.T) {
 		name: "bad (broker change)",
 		current: &Trigger{
 			Spec: TriggerSpec{
-				Broker: "broker",
+				Broker:     "broker",
+				Subscriber: validSubscriber,
 			},
 		},
 		original: &Trigger{
 			Spec: TriggerSpec{
-				Broker: "original_broker",
+				Broker:     "original_broker",
+				Subscriber: validSubscriber,
 			},
 		},
 		want: &apis.FieldError{
@@ -441,7 +487,9 @@ func TestTriggerImmutableFields(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := test.current.CheckImmutableFields(context.TODO(), test.original)
+			ctx := context.Background()
+			ctx = apis.WithinUpdate(ctx, test.original)
+			got := test.current.Validate(ctx)
 			if diff := cmp.Diff(test.want.Error(), got.Error()); diff != "" {
 				t.Errorf("CheckImmutableFields (-want, +got) = %v", diff)
 			}

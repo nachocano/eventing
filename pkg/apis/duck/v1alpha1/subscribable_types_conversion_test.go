@@ -95,6 +95,14 @@ func TestSubscribableTypeConversion(t *testing.T) {
 								BackoffDelay:  pointer.StringPtr("5s"),
 							},
 						},
+						{
+							UID:               "uid-2",
+							Generation:        8,
+							SubscriberURI:     apis.HTTP("subscriber2.example.com"),
+							ReplyURI:          apis.HTTP("reply2.example.com"),
+							DeadLetterSinkURI: apis.HTTP("subscriber2.dls.example.com"),
+							Delivery:          nil,
+						},
 					},
 				},
 			},
@@ -123,7 +131,9 @@ func TestSubscribableTypeConversion(t *testing.T) {
 				if err := got.ConvertFrom(context.Background(), ver); err != nil {
 					t.Errorf("ConvertFrom() = %v", err)
 				}
-				if diff := cmp.Diff(test.in, got); diff != "" {
+
+				fixed := fixSubscribableTypeDeprecated(test.in)
+				if diff := cmp.Diff(fixed, got); diff != "" {
 					t.Errorf("roundtrip (-want, +got) = %v", diff)
 				}
 			})
@@ -213,4 +223,57 @@ func TestSubscribableTypeConversionWithV1Beta1(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestSubscribableTypeSpecConversionBadType(t *testing.T) {
+	good, bad := &SubscribableTypeSpec{}, &SubscribableTypeSpec{}
+
+	if err := good.ConvertTo(context.Background(), bad); err == nil {
+		t.Errorf("ConvertTo() = %#v, wanted error", bad)
+	}
+
+	if err := good.ConvertFrom(context.Background(), bad); err == nil {
+		t.Errorf("ConvertFrom() = %#v, wanted error", good)
+	}
+}
+
+func TestSubscribableTypeStatusConversionBadType(t *testing.T) {
+	good, bad := &SubscribableTypeStatus{}, &SubscribableTypeStatus{}
+
+	if err := good.ConvertTo(context.Background(), bad); err == nil {
+		t.Errorf("ConvertTo() = %#v, wanted error", bad)
+	}
+
+	if err := good.ConvertFrom(context.Background(), bad); err == nil {
+		t.Errorf("ConvertFrom() = %#v, wanted error", good)
+	}
+}
+
+func TestSubscriberSpecConversionBadType(t *testing.T) {
+	good, bad := &SubscriberSpec{}, &SubscriberSpec{}
+
+	if err := good.ConvertTo(context.Background(), bad); err == nil {
+		t.Errorf("ConvertTo() = %#v, wanted error", bad)
+	}
+
+	if err := good.ConvertFrom(context.Background(), bad); err == nil {
+		t.Errorf("ConvertFrom() = %#v, wanted error", good)
+	}
+}
+
+// Since v1beta1 to v1alpha1 is lossy.
+func fixSubscribableTypeDeprecated(in *SubscribableType) *SubscribableType {
+	if in.Spec.Subscribable != nil && len(in.Spec.Subscribable.Subscribers) > 0 {
+		for i := range in.Spec.Subscribable.Subscribers {
+			if in.Spec.Subscribable.Subscribers[i].Delivery == nil {
+				in.Spec.Subscribable.Subscribers[i].Delivery = &v1beta1.DeliverySpec{
+					DeadLetterSink: &pkgduckv1.Destination{
+						URI: in.Spec.Subscribable.Subscribers[i].DeadLetterSinkURI,
+					},
+				}
+			}
+		}
+	}
+
+	return in
 }
