@@ -1165,14 +1165,12 @@ func TestReconcile(t *testing.T) {
 			kubeClientSet:      fakekubeclient.Get(ctx),
 			subscriptionLister: listers.GetSubscriptionLister(),
 			triggerLister:      listers.GetTriggerLister(),
-			brokerLister:       listers.GetBrokerLister(),
 
 			endpointsLister:    listers.GetEndpointsLister(),
 			kresourceTracker:   duck.NewListableTracker(ctx, conditions.Get, func(types.NamespacedName) {}, 0),
 			channelableTracker: duck.NewListableTracker(ctx, channelable.Get, func(types.NamespacedName) {}, 0),
 			addressableTracker: duck.NewListableTracker(ctx, v1a1addr.Get, func(types.NamespacedName) {}, 0),
 			uriResolver:        resolver.NewURIResolver(ctx, func(types.NamespacedName) {}),
-			recorder:           controller.GetEventRecorder(ctx),
 		}
 		return broker.NewReconciler(ctx, logger,
 			fakeeventingclient.Get(ctx), listers.GetBrokerLister(),

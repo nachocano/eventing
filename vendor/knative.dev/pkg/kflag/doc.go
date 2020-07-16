@@ -14,14 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package leaderelection
-
-// ControllerOrdinal tries to get ordinal from the pod name of a StatefulSet,
-// which is provided from the environment variable CONTROLLER_ORDINAL.
-func ControllerOrdinal() (int, error) {
-	ssc, err := newStatefulSetConfig()
-	if err != nil {
-		return 0, err
-	}
-	return ssc.StatefulSetID.ordinal, nil
-}
+// Package kflag contains a variety of non-standard command-line flag types
+package kflag

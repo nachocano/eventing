@@ -7,6 +7,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.2
 	github.com/google/go-cmp v0.5.0
+	github.com/google/gofuzz v1.1.0
 	github.com/google/mako v0.0.0-20190821191249-122f8dcef9e3
 	github.com/google/uuid v1.1.1
 	github.com/influxdata/tdigest v0.0.0-20191024211133-5d87a7585faa // indirect
@@ -37,7 +38,7 @@ require (
 	k8s.io/apiserver v0.17.6
 	k8s.io/client-go v11.0.1-0.20190805182717-6502b5e7b1b5+incompatible
 	k8s.io/utils v0.0.0-20200124190032-861946025e34
-	knative.dev/pkg v0.0.0-20200714180919-c49f5b61e264
+	knative.dev/pkg v0.0.0-20200714191819-258f5b86c26e
 	knative.dev/test-infra v0.0.0-20200713220518-5a4c4cad5372
 	sigs.k8s.io/yaml v1.2.0
 )
