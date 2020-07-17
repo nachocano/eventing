@@ -27,6 +27,7 @@ import (
 	configsv1alpha1 "knative.dev/eventing/pkg/apis/configs/v1alpha1"
 	eventingv1 "knative.dev/eventing/pkg/apis/eventing/v1"
 	eventingv1beta1 "knative.dev/eventing/pkg/apis/eventing/v1beta1"
+	eventingv1beta2 "knative.dev/eventing/pkg/apis/eventing/v1beta2"
 	flowsv1 "knative.dev/eventing/pkg/apis/flows/v1"
 	flowsv1beta1 "knative.dev/eventing/pkg/apis/flows/v1beta1"
 	messagingv1 "knative.dev/eventing/pkg/apis/messaging/v1"
@@ -42,6 +43,7 @@ var parameterCodec = runtime.NewParameterCodec(scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
 	configsv1alpha1.AddToScheme,
 	eventingv1beta1.AddToScheme,
+	eventingv1beta2.AddToScheme,
 	eventingv1.AddToScheme,
 	flowsv1beta1.AddToScheme,
 	flowsv1.AddToScheme,
