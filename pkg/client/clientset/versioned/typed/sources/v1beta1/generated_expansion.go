@@ -18,6 +18,8 @@ limitations under the License.
 
 package v1beta1
 
+type ApiServerSourceExpansion interface{}
+
 type ContainerSourceExpansion interface{}
 
 type SinkBindingExpansion interface{}
