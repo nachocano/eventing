@@ -21,17 +21,24 @@ import (
 	"testing"
 	"time"
 
-	adaptertest "knative.dev/eventing/pkg/adapter/v2/test"
+	_ "knative.dev/pkg/client/injection/kube/client/fake"
 	rectesting "knative.dev/pkg/reconciler/testing"
+
+	pkgadapter "knative.dev/eventing/pkg/adapter/v2"
+	adaptertest "knative.dev/eventing/pkg/adapter/v2/test"
 )
 
 func TestStartStopAdapter(t *testing.T) {
 	ctx, _ := rectesting.SetupFakeContext(t)
+	ctx, cancel := context.WithCancel(ctx)
+	cmw := pkgadapter.SetupConfigMapWatchOrDie(ctx, "component", "test-ns")
+	ctx = pkgadapter.WithConfigMapWatcher(ctx, cmw)
+
 	envCfg := NewEnvConfig()
+
 	ce := adaptertest.NewTestClient()
 	adapter := NewAdapter(ctx, envCfg, ce)
 
-	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan bool)
 	go func(ctx context.Context) {
 		err := adapter.Start(ctx)

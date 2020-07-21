@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 	corev1listers "k8s.io/client-go/listers/core/v1"
 
 	duckv1 "knative.dev/eventing/pkg/apis/duck/v1"
@@ -63,7 +62,6 @@ const (
 type Reconciler struct {
 	eventingClientSet clientset.Interface
 	dynamicClientSet  dynamic.Interface
-	kubeClientSet     kubernetes.Interface
 
 	// listers index properties about resources
 	endpointsLister    corev1listers.EndpointsLister
@@ -156,12 +154,18 @@ func (r *Reconciler) reconcileKind(ctx context.Context, b *eventingv1.Broker) (*
 		// Ok to return nil for error here, once channel address becomes available, this will get requeued.
 		return &chanMan.ref, nil
 	}
-	if url := triggerChan.Status.Address.URL; url.Host == "" {
+	if url := triggerChan.Status.Address.URL; url == nil || url.Host == "" {
 		logging.FromContext(ctx).Debugw("Trigger Channel does not have an address", zap.Any("triggerChan", triggerChan))
 		b.Status.MarkTriggerChannelFailed("NoAddress", "Channel does not have an address.")
 		// Ok to return nil for error here, once channel address becomes available, this will get requeued.
 		return &chanMan.ref, nil
 	}
+
+	// Attach the channel address as a status annotation.
+	if b.Status.Annotations == nil {
+		b.Status.Annotations = make(map[string]string, 1)
+	}
+	b.Status.Annotations["channelAddress"] = triggerChan.Status.Address.URL.String()
 
 	channelStatus := &duckv1.ChannelableStatus{AddressStatus: pkgduckv1.AddressStatus{Address: &pkgduckv1.Addressable{URL: triggerChan.Status.Address.URL}}}
 	b.Status.PropagateTriggerChannelReadiness(channelStatus)
@@ -329,8 +333,6 @@ func (r *Reconciler) reconcileTriggers(ctx context.Context, b *eventingv1.Broker
 			if tErr != nil {
 				logging.FromContext(ctx).Errorw("Reconciling trigger failed:", zap.String("name", t.Name), zap.Error(err))
 				recorder.Eventf(trigger, corev1.EventTypeWarning, triggerReconcileFailed, "Trigger reconcile failed: %v", tErr)
-			} else {
-				recorder.Event(trigger, corev1.EventTypeNormal, triggerReconciled, "Trigger reconciled")
 			}
 			trigger.Status.ObservedGeneration = t.Generation
 			if _, updateStatusErr := r.updateTriggerStatus(ctx, trigger); updateStatusErr != nil {

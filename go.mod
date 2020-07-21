@@ -10,6 +10,7 @@ require (
 	github.com/google/gofuzz v1.1.0
 	github.com/google/mako v0.0.0-20190821191249-122f8dcef9e3
 	github.com/google/uuid v1.1.1
+	github.com/hashicorp/go-retryablehttp v0.6.6
 	github.com/influxdata/tdigest v0.0.0-20191024211133-5d87a7585faa // indirect
 	github.com/json-iterator/go v1.1.9 // indirect
 	github.com/kelseyhightower/envconfig v1.4.0
@@ -19,6 +20,7 @@ require (
 	github.com/pelletier/go-toml v1.8.0
 	github.com/phayes/freeport v0.0.0-20180830031419-95f893ade6f2
 	github.com/pkg/errors v0.9.1
+	github.com/rickb777/date v1.13.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rogpeppe/fastuuid v1.2.0
 	github.com/stretchr/testify v1.5.1
@@ -38,8 +40,8 @@ require (
 	k8s.io/apiserver v0.17.6
 	k8s.io/client-go v11.0.1-0.20190805182717-6502b5e7b1b5+incompatible
 	k8s.io/utils v0.0.0-20200124190032-861946025e34
-	knative.dev/pkg v0.0.0-20200716140633-f1b82401dc8a
-	knative.dev/test-infra v0.0.0-20200715185233-6964ba126fee
+	knative.dev/pkg v0.0.0-20200719221534-601c9ff3832e
+	knative.dev/test-infra v0.0.0-20200719034534-5adf654f5ed5
 	sigs.k8s.io/yaml v1.2.0
 )
 

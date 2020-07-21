@@ -182,6 +182,11 @@ github.com/googleapis/gnostic/extensions
 github.com/grpc-ecosystem/grpc-gateway/internal
 github.com/grpc-ecosystem/grpc-gateway/runtime
 github.com/grpc-ecosystem/grpc-gateway/utilities
+# github.com/hashicorp/go-cleanhttp v0.5.1
+github.com/hashicorp/go-cleanhttp
+# github.com/hashicorp/go-retryablehttp v0.6.6
+## explicit
+github.com/hashicorp/go-retryablehttp
 # github.com/hashicorp/golang-lru v0.5.4
 github.com/hashicorp/golang-lru
 github.com/hashicorp/golang-lru/simplelru
@@ -262,6 +267,11 @@ github.com/prometheus/procfs/internal/util
 # github.com/prometheus/statsd_exporter v0.15.0
 github.com/prometheus/statsd_exporter/pkg/mapper
 github.com/prometheus/statsd_exporter/pkg/mapper/fsm
+# github.com/rickb777/date v1.13.0
+## explicit
+github.com/rickb777/date/period
+# github.com/rickb777/plural v1.2.1
+github.com/rickb777/plural
 # github.com/robfig/cron/v3 v3.0.1
 ## explicit
 github.com/robfig/cron/v3
@@ -966,7 +976,7 @@ k8s.io/utils/buffer
 k8s.io/utils/integer
 k8s.io/utils/pointer
 k8s.io/utils/trace
-# knative.dev/pkg v0.0.0-20200716140633-f1b82401dc8a
+# knative.dev/pkg v0.0.0-20200719221534-601c9ff3832e
 ## explicit
 knative.dev/pkg/apiextensions/storageversion
 knative.dev/pkg/apiextensions/storageversion/cmd/migrate
@@ -1047,6 +1057,7 @@ knative.dev/pkg/metrics/metricskey
 knative.dev/pkg/metrics/metricstest
 knative.dev/pkg/metrics/testing
 knative.dev/pkg/network
+knative.dev/pkg/network/handlers
 knative.dev/pkg/profiling
 knative.dev/pkg/ptr
 knative.dev/pkg/reconciler
@@ -1090,7 +1101,7 @@ knative.dev/pkg/webhook/resourcesemantics
 knative.dev/pkg/webhook/resourcesemantics/conversion
 knative.dev/pkg/webhook/resourcesemantics/defaulting
 knative.dev/pkg/webhook/resourcesemantics/validation
-# knative.dev/test-infra v0.0.0-20200715185233-6964ba126fee
+# knative.dev/test-infra v0.0.0-20200719034534-5adf654f5ed5
 ## explicit
 knative.dev/test-infra/scripts
 # sigs.k8s.io/yaml v1.2.0

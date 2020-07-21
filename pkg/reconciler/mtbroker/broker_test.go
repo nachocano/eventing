@@ -46,7 +46,6 @@ import (
 	"knative.dev/pkg/client/injection/ducks/duck/v1/conditions"
 	v1a1addr "knative.dev/pkg/client/injection/ducks/duck/v1alpha1/addressable"
 	v1b1addr "knative.dev/pkg/client/injection/ducks/duck/v1beta1/addressable"
-	fakekubeclient "knative.dev/pkg/client/injection/kube/client/fake"
 	"knative.dev/pkg/configmap"
 	"knative.dev/pkg/controller"
 	fakedynamicclient "knative.dev/pkg/injection/clients/dynamicclient/fake"
@@ -102,6 +101,7 @@ var (
 	testKey = fmt.Sprintf("%s/%s", testNS, brokerName)
 
 	triggerChannelHostname = fmt.Sprintf("foo.bar.svc.%s", utils.GetClusterDomainName())
+	triggerChannelURL      = fmt.Sprintf("http://%s", triggerChannelHostname)
 
 	filterServiceName  = "broker-filter"
 	ingressServiceName = "broker-ingress"
@@ -389,6 +389,7 @@ func TestReconcile(t *testing.T) {
 					WithBrokerConfig(config()),
 					WithInitBrokerConditions,
 					WithTriggerChannelReady(),
+					WithChannelAddressAnnotation(triggerChannelURL),
 					WithFilterFailed("ServiceFailure", `endpoints "broker-filter" not found`)),
 			}},
 			WantPatches: []clientgotesting.PatchActionImpl{
@@ -421,7 +422,8 @@ func TestReconcile(t *testing.T) {
 					WithBrokerClass(eventing.MTChannelBrokerClassValue),
 					WithBrokerConfig(config()),
 					WithBrokerReady,
-					WithBrokerAddressURI(brokerAddress)),
+					WithBrokerAddressURI(brokerAddress),
+					WithChannelAddressAnnotation(triggerChannelURL)),
 			}},
 			WantEvents: []string{
 				finalizerUpdatedEvent,
@@ -454,7 +456,8 @@ func TestReconcile(t *testing.T) {
 					WithBrokerClass(eventing.MTChannelBrokerClassValue),
 					WithBrokerConfig(config()),
 					WithBrokerReady,
-					WithBrokerAddressURI(brokerAddress)),
+					WithBrokerAddressURI(brokerAddress),
+					WithChannelAddressAnnotation(triggerChannelURL)),
 			}},
 			WantEvents: []string{
 				finalizerUpdatedEvent,
@@ -501,11 +504,11 @@ func TestReconcile(t *testing.T) {
 					WithBrokerClass(eventing.MTChannelBrokerClassValue),
 					WithBrokerConfig(config()),
 					WithBrokerReady,
-					WithBrokerAddressURI(brokerAddress)),
+					WithBrokerAddressURI(brokerAddress),
+					WithChannelAddressAnnotation(triggerChannelURL)),
 			}},
 			WantEvents: []string{
 				finalizerUpdatedEvent,
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled"),
 			},
 			WantPatches: []clientgotesting.PatchActionImpl{
 				patchFinalizers(testNS, brokerName),
@@ -627,9 +630,6 @@ func TestReconcile(t *testing.T) {
 					WithInitTriggerConditions,
 					WithTriggerSubscriberURI(subscriberURI)),
 			}},
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled"),
-			},
 		}, {
 			Name: "Trigger subscription create fails",
 			Key:  testKey,
@@ -796,9 +796,6 @@ func TestReconcile(t *testing.T) {
 			WantCreates: []runtime.Object{
 				makeFilterSubscription(),
 			},
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled"),
-			},
 		}, {
 			Name: "Trigger has subscriber ref exists",
 			Key:  testKey,
@@ -809,9 +806,6 @@ func TestReconcile(t *testing.T) {
 					WithTriggerSubscriberRef(subscriberGVK, subscriberName, testNS),
 					WithInitTriggerConditions)}...),
 			WantErr: false,
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled"),
-			},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewTrigger(triggerName, testNS, brokerName,
 					WithTriggerUID(triggerUID),
@@ -839,9 +833,6 @@ func TestReconcile(t *testing.T) {
 					WithInitTriggerConditions,
 				)}...),
 			WantErr: false,
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled"),
-			},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewTrigger(triggerName, testNS, brokerName,
 					WithTriggerUID(triggerUID),
@@ -869,9 +860,6 @@ func TestReconcile(t *testing.T) {
 					WithInitTriggerConditions,
 				)}...),
 			WantErr: false,
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled"),
-			},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewTrigger(triggerName, testNS, brokerName,
 					WithTriggerUID(triggerUID),
@@ -921,9 +909,6 @@ func TestReconcile(t *testing.T) {
 					WithInitTriggerConditions,
 				)}...),
 			WantErr: false,
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled"),
-			},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewTrigger(triggerName, testNS, brokerName,
 					WithTriggerUID(triggerUID),
@@ -948,9 +933,6 @@ func TestReconcile(t *testing.T) {
 					WithInitTriggerConditions,
 				)}...),
 			WantErr: false,
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled"),
-			},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewTrigger(triggerName, testNS, brokerName,
 					WithTriggerUID(triggerUID),
@@ -1005,8 +987,6 @@ func TestReconcile(t *testing.T) {
 					WithDependencyAnnotation(dependencyAnnotation),
 				)}...),
 			WantErr: false,
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled")},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewTrigger(triggerName, testNS, brokerName,
 					WithTriggerUID(triggerUID),
@@ -1034,8 +1014,6 @@ func TestReconcile(t *testing.T) {
 					WithDependencyAnnotation(dependencyAnnotation),
 				)}...),
 			WantErr: false,
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled")},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewTrigger(triggerName, testNS, brokerName,
 					WithTriggerUID(triggerUID),
@@ -1064,8 +1042,6 @@ func TestReconcile(t *testing.T) {
 					WithDependencyAnnotation(dependencyAnnotation),
 				)}...),
 			WantErr: false,
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled")},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewTrigger(triggerName, testNS, brokerName,
 					WithTriggerUID(triggerUID),
@@ -1093,9 +1069,6 @@ func TestReconcile(t *testing.T) {
 					WithDependencyAnnotation(dependencyAnnotation),
 				)}...),
 			WantErr: false,
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled"),
-			},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewTrigger(triggerName, testNS, brokerName,
 					WithTriggerUID(triggerUID),
@@ -1127,7 +1100,6 @@ func TestReconcile(t *testing.T) {
 			WantErr: false,
 			WantEvents: []string{
 				Eventf(corev1.EventTypeNormal, subscriptionDeleted, `Deprecated subscription removed: "%s/%s"`, testNS, makeReadySubscriptionDeprecatedName(triggerNameLong, triggerUIDLong).Name),
-				Eventf(corev1.EventTypeNormal, "TriggerReconciled", "Trigger reconciled"),
 			},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewTrigger(triggerNameLong, testNS, brokerName,
@@ -1162,7 +1134,6 @@ func TestReconcile(t *testing.T) {
 		r := &Reconciler{
 			eventingClientSet:  fakeeventingclient.Get(ctx),
 			dynamicClientSet:   fakedynamicclient.Get(ctx),
-			kubeClientSet:      fakekubeclient.Get(ctx),
 			subscriptionLister: listers.GetSubscriptionLister(),
 			triggerLister:      listers.GetTriggerLister(),
 
@@ -1202,7 +1173,6 @@ func createChannel(namespace string, ready bool) *unstructured.Unstructured {
 	var labels map[string]interface{}
 	var annotations map[string]interface{}
 	var name string
-	var url string
 	name = fmt.Sprintf("%s-kne-trigger", brokerName)
 	labels = map[string]interface{}{
 		eventing.BrokerLabelKey:                 brokerName,
@@ -1211,7 +1181,6 @@ func createChannel(namespace string, ready bool) *unstructured.Unstructured {
 	annotations = map[string]interface{}{
 		"eventing.knative.dev/scope": "cluster",
 	}
-	url = fmt.Sprintf("http://%s", triggerChannelHostname)
 	if ready {
 		return &unstructured.Unstructured{
 			Object: map[string]interface{}{
@@ -1236,7 +1205,7 @@ func createChannel(namespace string, ready bool) *unstructured.Unstructured {
 				},
 				"status": map[string]interface{}{
 					"address": map[string]interface{}{
-						"url": url,
+						"url": triggerChannelURL,
 					},
 				},
 			},
@@ -1377,7 +1346,8 @@ func allBrokerObjectsReadyPlus(objs ...runtime.Object) []runtime.Object {
 			WithBrokerReady,
 			WithBrokerFinalizers("brokers.eventing.knative.dev"),
 			WithBrokerResourceVersion(""),
-			WithBrokerAddressURI(brokerAddress)),
+			WithBrokerAddressURI(brokerAddress),
+			WithChannelAddressAnnotation(triggerChannelURL)),
 		createChannel(testNS, true),
 		imcConfigMap(),
 		NewEndpoints(filterServiceName, systemNS,
