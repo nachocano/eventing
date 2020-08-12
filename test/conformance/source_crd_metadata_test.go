@@ -1,3 +1,5 @@
+// +build e2e
+
 /*
 Copyright 2020 The Knative Authors
 
@@ -19,10 +21,10 @@ package conformance
 import (
 	"testing"
 
-	"knative.dev/eventing/test/conformance/helpers"
+	srchelpers "knative.dev/eventing/test/conformance/helpers/sources"
 	testlib "knative.dev/eventing/test/lib"
 )
 
 func TestSourceCRDMetadata(t *testing.T) {
-	helpers.SourceCRDMetadataTestHelperWithChannelTestRunner(t, sourcesTestRunner, testlib.SetupClientOptionNoop)
+	srchelpers.SourceCRDMetadataTestHelperWithChannelTestRunner(t, sourcesTestRunner, testlib.SetupClientOptionNoop)
 }

@@ -62,9 +62,9 @@ const (
 	resourceGroup = "pingsources.sources.knative.dev"
 )
 
-func NewCronJobsRunner(ceClient cloudevents.Client, kubeClient kubernetes.Interface, logger *zap.SugaredLogger) *cronJobsRunner {
+func NewCronJobsRunner(ceClient cloudevents.Client, kubeClient kubernetes.Interface, logger *zap.SugaredLogger, opts ...cron.Option) *cronJobsRunner {
 	return &cronJobsRunner{
-		cron:       *cron.New(),
+		cron:       *cron.New(opts...),
 		Client:     ceClient,
 		Logger:     logger,
 		entryids:   make(map[string]entryIdConfig),
@@ -107,11 +107,16 @@ func (a *cronJobsRunner) RemoveSchedule(id cron.EntryID) {
 	a.cron.Remove(id)
 }
 
-func (a *cronJobsRunner) Start(stopCh <-chan struct{}) error {
+func (a *cronJobsRunner) Start(stopCh <-chan struct{}) {
 	a.cron.Start()
-	<-stopCh
-	a.cron.Stop()
-	return nil
+	<-stopCh // main channel that gets closed once term signal is received
+}
+
+func (a *cronJobsRunner) Stop() {
+	ctx := a.cron.Stop() // no more ticks
+	if ctx != nil {      // ctx gets done when all jobs complete
+		<-ctx.Done() // wait for all to be done.
+	}
 }
 
 func (a *cronJobsRunner) cronTick(ctx context.Context, event cloudevents.Event) func() {
