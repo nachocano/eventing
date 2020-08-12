@@ -26,6 +26,7 @@ import (
 	"knative.dev/eventing/pkg/reconciler/channel"
 	"knative.dev/eventing/pkg/reconciler/containersource"
 	"knative.dev/eventing/pkg/reconciler/eventtype"
+	producercrd "knative.dev/eventing/pkg/reconciler/eventtype/crd"
 	"knative.dev/eventing/pkg/reconciler/parallel"
 	"knative.dev/eventing/pkg/reconciler/pingsource"
 	"knative.dev/eventing/pkg/reconciler/sequence"
@@ -52,5 +53,7 @@ func main() {
 		containersource.NewController,
 		// Sources CRD
 		sourcecrd.NewController,
+		// Producer CRD
+		producercrd.NewController,
 	)
 }
