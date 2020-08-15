@@ -60,6 +60,7 @@ func (h *Handler) getBroker(namespace, name string) (*eventingv1.Broker, error) 
 	return broker, nil
 }
 
+// TODO add UID label to brokers.
 func (h *Handler) getBrokerById(namespace, id string) (*eventingv1.Broker, error) {
 	brokers, err := h.BrokerLister.Brokers(namespace).List(labels.Everything())
 	if err != nil {
@@ -85,6 +86,7 @@ func (h *Handler) getBrokers(namespace string) ([]*eventingv1.Broker, error) {
 }
 
 // TODO this could actually return a list. Correct spec.
+// TODO add type label to EventTypes
 func (h *Handler) getEventType(namespace, type_ string) (*eventingv1beta1.EventType, error) {
 	eventTypes, err := h.EventTypeLister.EventTypes(namespace).List(labels.Everything())
 	if err != nil {
@@ -168,9 +170,9 @@ func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	}
 	namespace := requestURI[2]
 
-	if requestURI[3] == "services" {
+	if strings.HasPrefix(requestURI[3], "services") {
 		h.handleServices(writer, request, requestURI, namespace)
-	} else if requestURI[3] == "types" {
+	} else if strings.HasPrefix(requestURI[3], "types") {
 		h.handleTypes(writer, request, requestURI, namespace)
 	} else {
 		writer.WriteHeader(http.StatusNotFound)
@@ -198,7 +200,7 @@ func (h *Handler) handleServices(writer http.ResponseWriter, request *http.Reque
 			return
 		} else if len(req) == 2 {
 			//  /namespaces/<namespace>/services?name={name}
-			r := strings.Split(req[2], "=")
+			r := strings.Split(req[1], "=")
 			if len(r) != 2 || r[0] != "name" {
 				h.Logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
 				writer.WriteHeader(http.StatusBadRequest)
@@ -247,7 +249,7 @@ func (h *Handler) handleTypes(writer http.ResponseWriter, request *http.Request,
 			return
 		} else if len(req) == 2 {
 			// /namespaces/<namespace>/types?matching={name}
-			r := strings.Split(req[2], "=")
+			r := strings.Split(req[1], "=")
 			if len(r) != 2 || r[0] != "matching" {
 				h.Logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
 				writer.WriteHeader(http.StatusBadRequest)
