@@ -18,6 +18,7 @@ package discovery
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -192,6 +193,13 @@ func (h *Handler) handleServices(writer http.ResponseWriter, request *http.Reque
 			return
 		}
 		h.Logger.Info("Broker retrieved", zap.String("broker", broker.Name))
+		b, err := json.Marshal(broker)
+		if err != nil {
+			h.Logger.Warn("Error marshalling broker", zap.Any("broker", broker))
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		writer.Write(b)
 	} else {
 		req := strings.Split(requestURI[3], "?")
 		if len(req) > 2 {
@@ -216,6 +224,13 @@ func (h *Handler) handleServices(writer http.ResponseWriter, request *http.Reque
 				return
 			}
 			h.Logger.Info("Broker retrieved", zap.String("broker", broker.Name))
+			b, err := json.Marshal(broker)
+			if err != nil {
+				h.Logger.Warn("Error marshalling broker", zap.Any("broker", broker))
+				writer.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			writer.Write(b)
 		} else {
 			// /namespaces/<namespace>/services
 			brokers, err := h.getBrokers(namespace)
@@ -224,6 +239,13 @@ func (h *Handler) handleServices(writer http.ResponseWriter, request *http.Reque
 				return
 			}
 			h.Logger.Info("Brokers retrieved", zap.Int("brokersCount", len(brokers)))
+			bs, err := json.Marshal(brokers)
+			if err != nil {
+				h.Logger.Warn("Error marshalling brokers", zap.Any("brokers", bs))
+				writer.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			writer.Write(bs)
 		}
 	}
 }
@@ -241,6 +263,13 @@ func (h *Handler) handleTypes(writer http.ResponseWriter, request *http.Request,
 			return
 		}
 		h.Logger.Info("EventType retrieved", zap.String("eventType", et.Name))
+		e, err := json.Marshal(et)
+		if err != nil {
+			h.Logger.Warn("Error marshalling EventType", zap.Any("eventType", et))
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		writer.Write(e)
 	} else {
 		req := strings.Split(requestURI[3], "?")
 		if len(req) > 2 {
@@ -265,6 +294,13 @@ func (h *Handler) handleTypes(writer http.ResponseWriter, request *http.Request,
 				return
 			}
 			h.Logger.Info("EventTypes retrieved", zap.Int("eventTypesCount", len(ets)))
+			es, err := json.Marshal(ets)
+			if err != nil {
+				h.Logger.Warn("Error marshalling EventTypes", zap.Any("eventTypes", es))
+				writer.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			writer.Write(es)
 		} else {
 			// /namespaces/<namespace>/types
 			ets, err := h.getEventTypes(namespace)
@@ -273,6 +309,13 @@ func (h *Handler) handleTypes(writer http.ResponseWriter, request *http.Request,
 				return
 			}
 			h.Logger.Info("EventTypes retrieved", zap.Int("eventTypesCount", len(ets)))
+			es, err := json.Marshal(ets)
+			if err != nil {
+				h.Logger.Warn("Error marshalling EventTypes", zap.Any("eventType", ets))
+				writer.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			writer.Write(es)
 		}
 	}
 }
