@@ -25,7 +25,6 @@ import (
 	"knative.dev/eventing/pkg/reconciler/apiserversource"
 	"knative.dev/eventing/pkg/reconciler/channel"
 	"knative.dev/eventing/pkg/reconciler/containersource"
-	"knative.dev/eventing/pkg/reconciler/eventtype"
 	producercrd "knative.dev/eventing/pkg/reconciler/eventtype/crd"
 	"knative.dev/eventing/pkg/reconciler/parallel"
 	"knative.dev/eventing/pkg/reconciler/pingsource"
@@ -39,9 +38,6 @@ func main() {
 		// Messaging
 		channel.NewController,
 		subscription.NewController,
-
-		// Eventing
-		eventtype.NewController,
 
 		// Flows
 		parallel.NewController,

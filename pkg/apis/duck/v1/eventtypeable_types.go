@@ -42,7 +42,8 @@ type EventTypeableType struct {
 }
 
 type EventTypeableStatus struct {
-	EventTypeable `json:",inline" patchStrategy:"merge" patchMergeKey:"uid"`
+	// TODO add path  merge strategy
+	EventTypeable `json:",inline"`
 }
 
 // Verify EventTypeableType resources meet duck contracts.
