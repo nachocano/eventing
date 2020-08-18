@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/types"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"knative.dev/pkg/apis"
@@ -27,8 +29,8 @@ import (
 )
 
 type EventTypeable struct {
-	// TODO create a struct instead of just a list of strings.
-	EventTypes []string `json:"eventTypes,omitempty"`
+	UID  types.UID `json:"uid,omitempty"`
+	Type string    `json:"type,omitempty"`
 }
 
 // +genduck
@@ -42,8 +44,9 @@ type EventTypeableType struct {
 }
 
 type EventTypeableStatus struct {
-	// TODO add path  merge strategy
-	EventTypeable `json:",inline"`
+	// +patchMergeKey=uid
+	// +patchStrategy=merge
+	EventTypes []EventTypeable `json:"eventTypes,omitempty" patchStrategy:"merge" patchMergeKey:"uid"`
 }
 
 // Verify EventTypeableType resources meet duck contracts.
@@ -70,12 +73,13 @@ func (a *EventTypeableType) ConvertFrom(ctx context.Context, from apis.Convertib
 // Populate implements duck.Populatable
 func (t *EventTypeableType) Populate() {
 	t.Status = EventTypeableStatus{
-		EventTypeable: EventTypeable{
-			EventTypes: []string{
-				"mytype",
-				"myothertype",
-			},
-		},
+		EventTypes: []EventTypeable{{
+			UID:  "2f9b5e8e-deb6-11e8-9f32-f2801f1b9fd1",
+			Type: "my-type",
+		}, {
+			UID:  "2f9b5e8e-deb6-11e8-9f32-f2801f1b9fd2",
+			Type: "my-type-2",
+		}},
 	}
 }
 

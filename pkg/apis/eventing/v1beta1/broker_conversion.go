@@ -22,7 +22,7 @@ import (
 
 	duckv1 "knative.dev/eventing/pkg/apis/duck/v1"
 	duckv1beta1 "knative.dev/eventing/pkg/apis/duck/v1beta1"
-	v1 "knative.dev/eventing/pkg/apis/eventing/v1"
+	"knative.dev/eventing/pkg/apis/eventing/v1"
 	"knative.dev/pkg/apis"
 )
 
@@ -40,9 +40,13 @@ func (source *Broker) ConvertTo(ctx context.Context, to apis.Convertible) error 
 		}
 		sink.Status.Status = source.Status.Status
 		sink.Status.Address = source.Status.Address
-		if source.Status.EventTypes != nil {
-			sink.Status.EventTypes = &duckv1.EventTypeable{
-				EventTypes: source.Status.EventTypes.EventTypes,
+		if len(source.Status.EventTypes) > 0 {
+			sink.Status.EventTypes = make([]duckv1.EventTypeable, len(source.Status.EventTypes))
+			for i, et := range source.Status.EventTypes {
+				sink.Status.EventTypes[i] = duckv1.EventTypeable{
+					UID:  et.UID,
+					Type: et.Type,
+				}
 			}
 		}
 		return nil
@@ -65,9 +69,13 @@ func (sink *Broker) ConvertFrom(ctx context.Context, from apis.Convertible) erro
 		}
 		sink.Status.Status = source.Status.Status
 		sink.Status.Address = source.Status.Address
-		if source.Status.EventTypes != nil {
-			sink.Status.EventTypes = &duckv1beta1.EventTypeable{
-				EventTypes: source.Status.EventTypes.EventTypes,
+		if len(source.Status.EventTypes) > 0 {
+			sink.Status.EventTypes = make([]duckv1beta1.EventTypeable, len(source.Status.EventTypes))
+			for i, et := range source.Status.EventTypes {
+				sink.Status.EventTypes[i] = duckv1beta1.EventTypeable{
+					UID:  et.UID,
+					Type: et.Type,
+				}
 			}
 		}
 		return nil

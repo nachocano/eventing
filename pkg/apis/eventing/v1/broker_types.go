@@ -92,7 +92,7 @@ type BrokerStatus struct {
 	Address duckv1.Addressable `json:"address,omitempty"`
 
 	// Broker is EventTypeable. It exposes the types of events that flow through its mesh.
-	EventTypes *eventingduckv1.EventTypeable `json:",inline"`
+	EventTypes []eventingduckv1.EventTypeable `json:"eventTypes,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
