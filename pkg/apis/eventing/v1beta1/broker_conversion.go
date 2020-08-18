@@ -40,6 +40,11 @@ func (source *Broker) ConvertTo(ctx context.Context, to apis.Convertible) error 
 		}
 		sink.Status.Status = source.Status.Status
 		sink.Status.Address = source.Status.Address
+		if source.Status.EventTypes != nil {
+			sink.Status.EventTypes = &duckv1.EventTypeable{
+				EventTypes: source.Status.EventTypes.EventTypes,
+			}
+		}
 		return nil
 	default:
 		return fmt.Errorf("unknown version, got: %T", sink)
@@ -60,6 +65,11 @@ func (sink *Broker) ConvertFrom(ctx context.Context, from apis.Convertible) erro
 		}
 		sink.Status.Status = source.Status.Status
 		sink.Status.Address = source.Status.Address
+		if source.Status.EventTypes != nil {
+			sink.Status.EventTypes = &duckv1beta1.EventTypeable{
+				EventTypes: source.Status.EventTypes.EventTypes,
+			}
+		}
 		return nil
 	default:
 		return fmt.Errorf("unknown version, got: %T", source)

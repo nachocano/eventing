@@ -90,6 +90,8 @@ type BrokerStatus struct {
 	// Broker is Addressable. It exposes the endpoint as an URI to get events
 	// delivered into the Broker mesh.
 	Address duckv1.Addressable `json:"address,omitempty"`
+
+	EventTypes *eventingduckv1beta1.EventTypeable `json:",inline"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
