@@ -33,7 +33,7 @@ spec:
       containers:
       - name: discovery
         terminationMessagePolicy: FallbackToLogsOnError
-        image: ko://knative.dev/eventing/cmd/discovery
+        image: ko://knative.dev/eventing/cmd/serverless/discovery
         livenessProbe:
           failureThreshold: 3
           httpGet:

@@ -33,7 +33,7 @@ spec:
       containers:
       - name: subscription
         terminationMessagePolicy: FallbackToLogsOnError
-        image: ko://knative.dev/eventing/cmd/subscription
+        image: ko://knative.dev/eventing/cmd/serverless/subscription
         livenessProbe:
           failureThreshold: 3
           httpGet:
