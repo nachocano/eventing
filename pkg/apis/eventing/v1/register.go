@@ -49,6 +49,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&BrokerList{},
 		&Trigger{},
 		&TriggerList{},
+		&EventType{},
+		&EventTypeList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

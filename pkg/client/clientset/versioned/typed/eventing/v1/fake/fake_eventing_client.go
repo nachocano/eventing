@@ -32,6 +32,10 @@ func (c *FakeEventingV1) Brokers(namespace string) v1.BrokerInterface {
 	return &FakeBrokers{c, namespace}
 }
 
+func (c *FakeEventingV1) EventTypes(namespace string) v1.EventTypeInterface {
+	return &FakeEventTypes{c, namespace}
+}
+
 func (c *FakeEventingV1) Triggers(namespace string) v1.TriggerInterface {
 	return &FakeTriggers{c, namespace}
 }

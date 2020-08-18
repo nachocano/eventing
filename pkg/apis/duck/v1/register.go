@@ -42,6 +42,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ChannelableList{},
 		&Resource{},
 		&ResourceList{},
+		&EventTypeableType{},
+		&EventTypeableTypeList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
