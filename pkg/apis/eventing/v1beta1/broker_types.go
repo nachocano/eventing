@@ -78,6 +78,8 @@ type BrokerSpec struct {
 	// This includes things like retries, DLQ, etc.
 	// +optional
 	Delivery *eventingduckv1beta1.DeliverySpec `json:"delivery,omitempty"`
+
+	EventTypes []eventingduckv1beta1.EventTypeable `json:"eventTypes,omitempty"`
 }
 
 // BrokerStatus represents the current state of a Broker.
@@ -90,8 +92,6 @@ type BrokerStatus struct {
 	// Broker is Addressable. It exposes the endpoint as an URI to get events
 	// delivered into the Broker mesh.
 	Address duckv1.Addressable `json:"address,omitempty"`
-
-	EventTypes []eventingduckv1beta1.EventTypeable `json:"eventTypes,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

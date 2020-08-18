@@ -101,6 +101,11 @@ func (in *BrokerSpec) DeepCopyInto(out *BrokerSpec) {
 		*out = new(duckv1beta1.DeliverySpec)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.EventTypes != nil {
+		in, out := &in.EventTypes, &out.EventTypes
+		*out = make([]duckv1beta1.EventTypeable, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 
@@ -119,11 +124,6 @@ func (in *BrokerStatus) DeepCopyInto(out *BrokerStatus) {
 	*out = *in
 	in.Status.DeepCopyInto(&out.Status)
 	in.Address.DeepCopyInto(&out.Address)
-	if in.EventTypes != nil {
-		in, out := &in.EventTypes, &out.EventTypes
-		*out = make([]duckv1beta1.EventTypeable, len(*in))
-		copy(*out, *in)
-	}
 	return
 }
 

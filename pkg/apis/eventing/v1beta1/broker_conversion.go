@@ -38,17 +38,17 @@ func (source *Broker) ConvertTo(ctx context.Context, to apis.Convertible) error 
 				return err
 			}
 		}
-		sink.Status.Status = source.Status.Status
-		sink.Status.Address = source.Status.Address
-		if len(source.Status.EventTypes) > 0 {
-			sink.Status.EventTypes = make([]duckv1.EventTypeable, len(source.Status.EventTypes))
-			for i, et := range source.Status.EventTypes {
-				sink.Status.EventTypes[i] = duckv1.EventTypeable{
+		if len(source.Spec.EventTypes) > 0 {
+			sink.Spec.EventTypes = make([]duckv1.EventTypeable, len(source.Spec.EventTypes))
+			for i, et := range source.Spec.EventTypes {
+				sink.Spec.EventTypes[i] = duckv1.EventTypeable{
 					UID:  et.UID,
 					Type: et.Type,
 				}
 			}
 		}
+		sink.Status.Status = source.Status.Status
+		sink.Status.Address = source.Status.Address
 		return nil
 	default:
 		return fmt.Errorf("unknown version, got: %T", sink)
@@ -67,17 +67,17 @@ func (sink *Broker) ConvertFrom(ctx context.Context, from apis.Convertible) erro
 				return err
 			}
 		}
-		sink.Status.Status = source.Status.Status
-		sink.Status.Address = source.Status.Address
-		if len(source.Status.EventTypes) > 0 {
-			sink.Status.EventTypes = make([]duckv1beta1.EventTypeable, len(source.Status.EventTypes))
-			for i, et := range source.Status.EventTypes {
-				sink.Status.EventTypes[i] = duckv1beta1.EventTypeable{
+		if len(source.Spec.EventTypes) > 0 {
+			sink.Spec.EventTypes = make([]duckv1beta1.EventTypeable, len(source.Spec.EventTypes))
+			for i, et := range source.Spec.EventTypes {
+				sink.Spec.EventTypes[i] = duckv1beta1.EventTypeable{
 					UID:  et.UID,
 					Type: et.Type,
 				}
 			}
 		}
+		sink.Status.Status = source.Status.Status
+		sink.Status.Address = source.Status.Address
 		return nil
 	default:
 		return fmt.Errorf("unknown version, got: %T", source)

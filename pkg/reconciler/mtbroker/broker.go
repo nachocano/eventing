@@ -160,6 +160,11 @@ func (r *Reconciler) ReconcileKind(ctx context.Context, b *eventingv1.Broker) pk
 		Path:   fmt.Sprintf("/%s/%s", b.Namespace, b.Name),
 	})
 
+	b.Status.EventTypes = []duckv1.EventTypeable{{
+		UID:  "5953bd10-703f-4a2d-a53f-62a7cb22a168",
+		Type: "my.dev.type",
+	}}
+
 	// So, at this point the Broker is ready and everything should be solid
 	// for the triggers to act upon.
 	return nil
