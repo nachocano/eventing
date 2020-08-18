@@ -29,9 +29,7 @@ import (
 
 	"go.uber.org/zap"
 	eventingv1 "knative.dev/eventing/pkg/apis/eventing/v1"
-	eventingv1beta1 "knative.dev/eventing/pkg/apis/eventing/v1beta1"
 	eventinglisters "knative.dev/eventing/pkg/client/listers/eventing/v1"
-	eventingv1beta1listers "knative.dev/eventing/pkg/client/listers/eventing/v1beta1"
 	"knative.dev/eventing/pkg/health"
 	"knative.dev/eventing/pkg/kncloudevents"
 )
@@ -47,7 +45,7 @@ type Handler struct {
 	// BrokerLister gets broker objects
 	BrokerLister eventinglisters.BrokerLister
 	// EventTypeLister gets event types objects
-	EventTypeLister eventingv1beta1listers.EventTypeLister
+	EventTypeLister eventinglisters.EventTypeLister
 
 	Logger *zap.Logger
 }
@@ -88,7 +86,7 @@ func (h *Handler) getBrokers(namespace string) ([]*eventingv1.Broker, error) {
 
 // TODO this could actually return a list. Correct spec.
 // TODO add type label to EventTypes
-func (h *Handler) getEventType(namespace, type_ string) (*eventingv1beta1.EventType, error) {
+func (h *Handler) getEventType(namespace, type_ string) (*eventingv1.EventType, error) {
 	eventTypes, err := h.EventTypeLister.EventTypes(namespace).List(labels.Everything())
 	if err != nil {
 		h.Logger.Warn("EventTypes list failed")
@@ -103,7 +101,7 @@ func (h *Handler) getEventType(namespace, type_ string) (*eventingv1beta1.EventT
 	return nil, errors.NewNotFound(schema.GroupResource{}, "")
 }
 
-func (h *Handler) getEventTypes(namespace string) ([]*eventingv1beta1.EventType, error) {
+func (h *Handler) getEventTypes(namespace string) ([]*eventingv1.EventType, error) {
 	eventTypes, err := h.EventTypeLister.EventTypes(namespace).List(labels.Everything())
 	if err != nil {
 		h.Logger.Warn("EventTypes list failed")
@@ -112,13 +110,13 @@ func (h *Handler) getEventTypes(namespace string) ([]*eventingv1beta1.EventType,
 	return eventTypes, nil
 }
 
-func (h *Handler) getEventTypesMatching(namespace, typeSubstring string) ([]*eventingv1beta1.EventType, error) {
+func (h *Handler) getEventTypesMatching(namespace, typeSubstring string) ([]*eventingv1.EventType, error) {
 	eventTypes, err := h.EventTypeLister.EventTypes(namespace).List(labels.Everything())
 	if err != nil {
 		h.Logger.Warn("EventTypes list failed")
 		return nil, err
 	}
-	ets := make([]*eventingv1beta1.EventType, 0)
+	ets := make([]*eventingv1.EventType, 0)
 	for _, eventType := range eventTypes {
 		if strings.Contains(strings.ToLower(eventType.Spec.Type), strings.ToLower(typeSubstring)) {
 			ets = append(ets, eventType)

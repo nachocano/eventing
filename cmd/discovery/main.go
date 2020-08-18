@@ -30,7 +30,7 @@ import (
 
 	cmdbroker "knative.dev/eventing/cmd/mtbroker"
 	brokerinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/broker"
-	eventtypeinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1beta1/eventtype"
+	eventtypeinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/eventtype"
 	"knative.dev/eventing/pkg/discovery"
 	"knative.dev/eventing/pkg/kncloudevents"
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
