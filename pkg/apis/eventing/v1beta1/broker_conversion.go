@@ -43,6 +43,7 @@ func (source *Broker) ConvertTo(ctx context.Context, to apis.Convertible) error 
 			for i, et := range source.Spec.EventTypes {
 				sink.Spec.EventTypes[i] = duckv1.EventTypeable{
 					UID:  et.UID,
+					Name: et.Name,
 					Type: et.Type,
 				}
 			}
@@ -72,6 +73,7 @@ func (sink *Broker) ConvertFrom(ctx context.Context, from apis.Convertible) erro
 			for i, et := range source.Spec.EventTypes {
 				sink.Spec.EventTypes[i] = duckv1beta1.EventTypeable{
 					UID:  et.UID,
+					Name: et.Name,
 					Type: et.Type,
 				}
 			}
