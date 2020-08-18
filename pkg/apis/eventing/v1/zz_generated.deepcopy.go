@@ -121,8 +121,8 @@ func (in *BrokerStatus) DeepCopyInto(out *BrokerStatus) {
 	in.Address.DeepCopyInto(&out.Address)
 	if in.EventTypes != nil {
 		in, out := &in.EventTypes, &out.EventTypes
-		*out = new(apisduckv1.EventTypeable)
-		(*in).DeepCopyInto(*out)
+		*out = make([]apisduckv1.EventTypeable, len(*in))
+		copy(*out, *in)
 	}
 	return
 }
