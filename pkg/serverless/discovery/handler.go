@@ -175,10 +175,6 @@ func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	requestURI := strings.Split(request.RequestURI, "/")
 
-	for i, req := range requestURI {
-		h.logger.Info("URI", zap.Int("idx", i), zap.String("req", req))
-	}
-
 	if len(requestURI) != 4 && len(requestURI) != 5 {
 		h.logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
 		writer.WriteHeader(http.StatusBadRequest)

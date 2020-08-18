@@ -30,7 +30,6 @@ import (
 
 	cmdbroker "knative.dev/eventing/cmd/mtbroker"
 	"knative.dev/eventing/pkg/kncloudevents"
-	"knative.dev/eventing/pkg/serverless/discovery"
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
 	"knative.dev/pkg/configmap"
 	"knative.dev/pkg/controller"
@@ -49,11 +48,11 @@ var (
 
 const (
 	defaultMetricsPort = 9092
-	component          = "discovery"
+	component          = "subscription"
 )
 
 type envConfig struct {
-	Port int `envconfig:"DISCOVERY_PORT" default:"8080"`
+	Port int `envconfig:"SUBSCRIPTION_PORT" default:"8080"`
 }
 
 func main() {
@@ -91,7 +90,7 @@ func main() {
 	logger := sl.Desugar()
 	defer flush(sl)
 
-	logger.Info("Starting Discovery")
+	logger.Info("Starting Subscription")
 
 	// Watch the logging config map and dynamically update logging levels.
 	configMapWatcher := configmap.NewInformedWatcher(kubeclient.Get(ctx), system.Namespace())
@@ -107,7 +106,7 @@ func main() {
 	// Watch the observability config map and dynamically update request logs.
 	configMapWatcher.Watch(logging.ConfigMapName(), logging.UpdateLevelFromConfigMap(sl, atomicLevel, component))
 
-	h := discovery.NewHandler(ctx,
+	h := subscription.NewHandler(ctx,
 		kncloudevents.NewHttpMessageReceiver(env.Port),
 		logger)
 
@@ -124,7 +123,7 @@ func main() {
 
 	// Start blocks forever.
 	if err = h.Start(ctx); err != nil {
-		logger.Error("discovery.Start() returned an error", zap.Error(err))
+		logger.Error("subscription.Start() returned an error", zap.Error(err))
 	}
 	logger.Info("Exiting...")
 }
