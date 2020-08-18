@@ -18,6 +18,6 @@ package resources
 
 func Labels(name string) map[string]string {
 	return map[string]string{
-		"eventing.knative.dev/sourceName": name,
+		"eventing.knative.dev/crdName": name,
 	}
 }

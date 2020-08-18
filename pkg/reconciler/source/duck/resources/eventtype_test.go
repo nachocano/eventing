@@ -49,8 +49,8 @@ func TestMakeEventType(t *testing.T) {
 				},
 			},
 		},
-		CeType:      "my-type",
-		CeSource:    apis.HTTP("my-source"),
+		CeType: "my-type",
+		//CeSource:    apis.HTTP("my-source"),
 		CeSchema:    apis.HTTP("my-schema"),
 		Description: "my-description",
 	}

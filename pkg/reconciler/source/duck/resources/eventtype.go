@@ -20,8 +20,9 @@ import (
 	"crypto/md5"
 	"fmt"
 
+	"knative.dev/eventing/pkg/apis/eventing/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"knative.dev/eventing/pkg/apis/eventing/v1beta1"
 	"knative.dev/pkg/apis"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
 	"knative.dev/pkg/ptr"
@@ -29,25 +30,24 @@ import (
 
 // EventTypeArgs are the arguments needed to create an EventType for a Source.
 type EventTypeArgs struct {
-	Source      *duckv1.Source
-	CeType      string
-	CeSource    *apis.URL
-	CeSchema    *apis.URL
-	Description string
+	Source         *duckv1.Source
+	CrdName        string
+	CeType         string
+	CeSchema       *apis.URL
+	SourceTemplate string
+	Extensions     []v1.Extension
+	Description    string
 }
 
-func MakeEventType(args *EventTypeArgs) *v1beta1.EventType {
+func MakeEventType(args *EventTypeArgs) *v1.EventType {
 	// Name it with the hash of the concatenation of the three fields.
 	// Cannot generate a fixed name based on type+UUID, because long type names might be cut, and we end up trying to create
 	// event types with the same name.
-	// TODO revisit whether we want multiple event types, or just one with multiple owner refs. That will depend on the fields
-	//  it will contain. For example, if we remove Broker and Source, then the latter makes more sense.
-	//  See https://github.com/knative/eventing/issues/2750
-	fixedName := fmt.Sprintf("%x", md5.Sum([]byte(args.CeType+args.CeSource.String()+args.CeSchema.String()+string(args.Source.GetUID()))))
-	return &v1beta1.EventType{
+	fixedName := fmt.Sprintf("%x", md5.Sum([]byte(args.CeType+args.CeSchema.String()+args.CrdName)))
+	return &v1.EventType{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fixedName,
-			Labels:    Labels(args.Source.Name),
+			Labels:    Labels(args.CrdName),
 			Namespace: args.Source.Namespace,
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion:         args.Source.APIVersion,
@@ -58,13 +58,13 @@ func MakeEventType(args *EventTypeArgs) *v1beta1.EventType {
 				Controller:         ptr.Bool(true),
 			}},
 		},
-		Spec: v1beta1.EventTypeSpec{
-			Type:   args.CeType,
-			Source: args.CeSource,
-			// TODO remove broker https://github.com/knative/eventing/issues/2750
-			Broker:      args.Source.Spec.Sink.GetRef().Name,
-			Description: args.Description,
-			Schema:      args.CeSchema,
+		Spec: v1.EventTypeSpec{
+			Type:           args.CeType,
+			SourceTemplate: args.SourceTemplate,
+			Extensions:     args.Extensions,
+			Description:    args.Description,
+			Schema:         args.CeSchema,
+			// TODO add more stuff here.
 		},
 	}
 }
