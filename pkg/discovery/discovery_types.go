@@ -1,5 +1,11 @@
 package discovery
 
+// TODO move to apis
+
+import (
+	eventingv1 "knative.dev/eventing/pkg/apis/eventing/v1"
+)
+
 type Service struct {
 	Id                 string            `json:"id"`
 	Name               string            `json:"name"`
@@ -15,18 +21,12 @@ type Service struct {
 }
 
 type Type struct {
-	Type              string      `json:"type"`
-	Description       string      `json:"description,omitempty"`
-	DataContentType   string      `json:"datacontenttype,omitempty"`
-	DataSchema        string      `json:"dataschema,omitempty"`
-	DataSchemaType    string      `json:"dataschematype,omitempty"`
-	DataSchemaContent string      `json:"dataschemacontent,omitempty"`
-	SourceTemplate    string      `json:"sourceTemplate,omitempty"`
-	Extensions        []Extension `json:"extensions,omitempty"`
-}
-
-type Extension struct {
-	Name    string `json:"name"`
-	Type    string `json:"type"`
-	SpecURL string `json:"specUrl,omitempty"`
+	Type              string                 `json:"type"`
+	Description       string                 `json:"description,omitempty"`
+	DataContentType   string                 `json:"datacontenttype,omitempty"`
+	DataSchema        string                 `json:"dataschema,omitempty"`
+	DataSchemaType    string                 `json:"dataschematype,omitempty"`
+	DataSchemaContent string                 `json:"dataschemacontent,omitempty"`
+	SourceTemplate    string                 `json:"sourceTemplate,omitempty"`
+	Extensions        []eventingv1.Extension `json:"extensions,omitempty"`
 }

@@ -30,8 +30,9 @@ import (
 )
 
 type EventTypeable struct {
-	UID  types.UID `json:"uid"`
-	Type string    `json:"type"`
+	UID  types.UID `json:"uid,omitempty"`
+	Name string    `json:"name,omitempty"`
+	Type string    `json:"type,omitempty"`
 }
 
 // +genduck

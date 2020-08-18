@@ -29,8 +29,6 @@ import (
 	"go.uber.org/zap"
 
 	cmdbroker "knative.dev/eventing/cmd/mtbroker"
-	brokerinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/broker"
-	eventtypeinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/eventtype"
 	"knative.dev/eventing/pkg/discovery"
 	"knative.dev/eventing/pkg/kncloudevents"
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
@@ -95,9 +93,6 @@ func main() {
 
 	logger.Info("Starting Discovery")
 
-	brokerLister := brokerinformer.Get(ctx).Lister()
-	eventTypeLister := eventtypeinformer.Get(ctx).Lister()
-
 	// Watch the logging config map and dynamically update logging levels.
 	configMapWatcher := configmap.NewInformedWatcher(kubeclient.Get(ctx), system.Namespace())
 	// Watch the observability config map and dynamically update metrics exporter.
@@ -112,12 +107,9 @@ func main() {
 	// Watch the observability config map and dynamically update request logs.
 	configMapWatcher.Watch(logging.ConfigMapName(), logging.UpdateLevelFromConfigMap(sl, atomicLevel, component))
 
-	h := &discovery.Handler{
-		Receiver:        kncloudevents.NewHttpMessageReceiver(env.Port),
-		Logger:          logger,
-		BrokerLister:    brokerLister,
-		EventTypeLister: eventTypeLister,
-	}
+	h := discovery.NewHandler(ctx,
+		kncloudevents.NewHttpMessageReceiver(env.Port),
+		logger)
 
 	// configMapWatcher does not block, so start it first.
 	if err = configMapWatcher.Start(ctx.Done()); err != nil {

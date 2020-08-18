@@ -58,7 +58,7 @@ type EventTypeSpec struct {
 
 	// Schema is a URI, it represents the CloudEvents schemaurl extension attribute.
 	// It may be a JSON schema, a protobuf schema, etc. It is optional.
-	// +optional
+	// +optional. If set, SchemaData shouldn't be specified.
 	Schema *apis.URL `json:"schema,omitempty"`
 	// SchemaData allows the CloudEvents schema to be stored directly in the
 	// EventType. Content is dependent on the encoding. Optional attribute.
@@ -67,7 +67,11 @@ type EventTypeSpec struct {
 	SchemaData string `json:"schemaData,omitempty"`
 
 	// SchemaDataType represents the type of schema represented in SchemaData.
+	// +optional. Required if SchemaData is specified
 	SchemaDataType string `json:"schemaDataType,omitempty"`
+
+	// ContentType is the ContentType of the data payload.
+	ContentType string `json:"contentType,omitempty"`
 
 	// Description is an optional field used to describe the EventType, in any meaningful way.
 	// +optional

@@ -30,6 +30,10 @@ import (
 	"go.uber.org/zap"
 	eventingv1 "knative.dev/eventing/pkg/apis/eventing/v1"
 	eventinglisters "knative.dev/eventing/pkg/client/listers/eventing/v1"
+
+	brokerinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/broker"
+	eventtypeinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/eventtype"
+
 	"knative.dev/eventing/pkg/health"
 	"knative.dev/eventing/pkg/kncloudevents"
 )
@@ -41,19 +45,39 @@ const (
 
 type Handler struct {
 	// Receiver receives incoming HTTP requests
-	Receiver *kncloudevents.HttpMessageReceiver
+	receiver *kncloudevents.HttpMessageReceiver
 	// BrokerLister gets broker objects
-	BrokerLister eventinglisters.BrokerLister
+	brokerLister eventinglisters.BrokerLister
 	// EventTypeLister gets event types objects
-	EventTypeLister eventinglisters.EventTypeLister
+	eventTypeLister eventinglisters.EventTypeLister
 
-	Logger *zap.Logger
+	logger *zap.Logger
+
+	converter *Converter
+}
+
+func NewHandler(ctx context.Context,
+	receiver *kncloudevents.HttpMessageReceiver,
+	logger *zap.Logger) *Handler {
+
+	brokerLister := brokerinformer.Get(ctx).Lister()
+	eventTypeLister := eventtypeinformer.Get(ctx).Lister()
+
+	converter := NewConverter(eventTypeLister, logger)
+
+	return &Handler{
+		receiver:        receiver,
+		brokerLister:    brokerLister,
+		eventTypeLister: eventTypeLister,
+		logger:          logger,
+		converter:       converter,
+	}
 }
 
 func (h *Handler) getBroker(namespace, name string) (*eventingv1.Broker, error) {
-	broker, err := h.BrokerLister.Brokers(namespace).Get(name)
+	broker, err := h.brokerLister.Brokers(namespace).Get(name)
 	if err != nil {
-		h.Logger.Warn("Broker getter failed")
+		h.logger.Warn("Broker getter failed")
 		return nil, err
 	}
 	return broker, nil
@@ -61,9 +85,9 @@ func (h *Handler) getBroker(namespace, name string) (*eventingv1.Broker, error) 
 
 // TODO add UID label to brokers.
 func (h *Handler) getBrokerById(namespace, id string) (*eventingv1.Broker, error) {
-	brokers, err := h.BrokerLister.Brokers(namespace).List(labels.Everything())
+	brokers, err := h.brokerLister.Brokers(namespace).List(labels.Everything())
 	if err != nil {
-		h.Logger.Warn("Brokers list failed")
+		h.logger.Warn("Brokers list failed")
 		return nil, err
 	}
 	for _, broker := range brokers {
@@ -71,14 +95,14 @@ func (h *Handler) getBrokerById(namespace, id string) (*eventingv1.Broker, error
 			return broker, nil
 		}
 	}
-	h.Logger.Warn("Broker not found", zap.String("id", id))
+	h.logger.Warn("Broker not found", zap.String("id", id))
 	return nil, errors.NewNotFound(schema.GroupResource{}, "")
 }
 
 func (h *Handler) getBrokers(namespace string) ([]*eventingv1.Broker, error) {
-	brokers, err := h.BrokerLister.Brokers(namespace).List(labels.Everything())
+	brokers, err := h.brokerLister.Brokers(namespace).List(labels.Everything())
 	if err != nil {
-		h.Logger.Warn("Brokers list failed")
+		h.logger.Warn("Brokers list failed")
 		return nil, err
 	}
 	return brokers, nil
@@ -87,9 +111,9 @@ func (h *Handler) getBrokers(namespace string) ([]*eventingv1.Broker, error) {
 // TODO this could actually return a list. Correct spec.
 // TODO add type label to EventTypes
 func (h *Handler) getEventType(namespace, type_ string) (*eventingv1.EventType, error) {
-	eventTypes, err := h.EventTypeLister.EventTypes(namespace).List(labels.Everything())
+	eventTypes, err := h.eventTypeLister.EventTypes(namespace).List(labels.Everything())
 	if err != nil {
-		h.Logger.Warn("EventTypes list failed")
+		h.logger.Warn("EventTypes list failed")
 		return nil, err
 	}
 	for _, eventType := range eventTypes {
@@ -97,23 +121,23 @@ func (h *Handler) getEventType(namespace, type_ string) (*eventingv1.EventType, 
 			return eventType, nil
 		}
 	}
-	h.Logger.Warn("EventType not found", zap.String("type", type_))
+	h.logger.Warn("EventType not found", zap.String("type", type_))
 	return nil, errors.NewNotFound(schema.GroupResource{}, "")
 }
 
 func (h *Handler) getEventTypes(namespace string) ([]*eventingv1.EventType, error) {
-	eventTypes, err := h.EventTypeLister.EventTypes(namespace).List(labels.Everything())
+	eventTypes, err := h.eventTypeLister.EventTypes(namespace).List(labels.Everything())
 	if err != nil {
-		h.Logger.Warn("EventTypes list failed")
+		h.logger.Warn("EventTypes list failed")
 		return nil, err
 	}
 	return eventTypes, nil
 }
 
 func (h *Handler) getEventTypesMatching(namespace, typeSubstring string) ([]*eventingv1.EventType, error) {
-	eventTypes, err := h.EventTypeLister.EventTypes(namespace).List(labels.Everything())
+	eventTypes, err := h.eventTypeLister.EventTypes(namespace).List(labels.Everything())
 	if err != nil {
-		h.Logger.Warn("EventTypes list failed")
+		h.logger.Warn("EventTypes list failed")
 		return nil, err
 	}
 	ets := make([]*eventingv1.EventType, 0)
@@ -123,22 +147,22 @@ func (h *Handler) getEventTypesMatching(namespace, typeSubstring string) ([]*eve
 		}
 	}
 	if len(ets) == 0 {
-		h.Logger.Warn("EventTypes not found", zap.String("typeSubstring", typeSubstring))
+		h.logger.Warn("EventTypes not found", zap.String("typeSubstring", typeSubstring))
 		return nil, errors.NewNotFound(schema.GroupResource{}, "")
 	}
 	return ets, nil
 }
 
 func (h *Handler) Start(ctx context.Context) error {
-	return h.Receiver.StartListen(ctx, health.WithLivenessCheck(h))
+	return h.receiver.StartListen(ctx, health.WithLivenessCheck(h))
 }
 
 func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	h.Logger.Info("Called", zap.String("URI", request.RequestURI))
+	h.logger.Info("Called", zap.String("URI", request.RequestURI))
 
 	// validate request method
 	if request.Method != http.MethodGet {
-		h.Logger.Warn("unexpected request method", zap.String("method", request.Method))
+		h.logger.Warn("unexpected request method", zap.String("method", request.Method))
 		writer.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
@@ -152,18 +176,18 @@ func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	requestURI := strings.Split(request.RequestURI, "/")
 
 	for i, req := range requestURI {
-		h.Logger.Info("URI", zap.Int("idx", i), zap.String("req", req))
+		h.logger.Info("URI", zap.Int("idx", i), zap.String("req", req))
 	}
 
 	if len(requestURI) != 4 && len(requestURI) != 5 {
-		h.Logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
+		h.logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	// Only allow namespaced-based queries for now.
 	if requestURI[1] != "namespaces" {
-		h.Logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
+		h.logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -190,25 +214,26 @@ func (h *Handler) handleServices(writer http.ResponseWriter, request *http.Reque
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		h.Logger.Info("Broker retrieved", zap.String("broker", broker.Name))
-		b, err := json.Marshal(broker)
+		h.logger.Info("Broker retrieved", zap.String("broker", broker.Name))
+		service := h.converter.ToService(broker)
+		svc, err := json.Marshal(service)
 		if err != nil {
-			h.Logger.Warn("Error marshalling broker", zap.Any("broker", broker))
+			h.logger.Warn("Error marshalling service", zap.Any("service", service))
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		writer.Write(b)
+		writer.Write(svc)
 	} else {
 		req := strings.Split(requestURI[3], "?")
 		if len(req) > 2 {
-			h.Logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
+			h.logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
 			writer.WriteHeader(http.StatusBadRequest)
 			return
 		} else if len(req) == 2 {
 			//  /namespaces/<namespace>/services?name={name}
 			r := strings.Split(req[1], "=")
 			if len(r) != 2 || r[0] != "name" {
-				h.Logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
+				h.logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
 				writer.WriteHeader(http.StatusBadRequest)
 				return
 			}
@@ -221,14 +246,15 @@ func (h *Handler) handleServices(writer http.ResponseWriter, request *http.Reque
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			h.Logger.Info("Broker retrieved", zap.String("broker", broker.Name))
-			b, err := json.Marshal(broker)
+			h.logger.Info("Broker retrieved", zap.String("broker", broker.Name))
+			service := h.converter.ToService(broker)
+			svc, err := json.Marshal(service)
 			if err != nil {
-				h.Logger.Warn("Error marshalling broker", zap.Any("broker", broker))
+				h.logger.Warn("Error marshalling service", zap.Any("service", service))
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			writer.Write(b)
+			writer.Write(svc)
 		} else {
 			// /namespaces/<namespace>/services
 			brokers, err := h.getBrokers(namespace)
@@ -236,14 +262,15 @@ func (h *Handler) handleServices(writer http.ResponseWriter, request *http.Reque
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			h.Logger.Info("Brokers retrieved", zap.Int("brokersCount", len(brokers)))
-			bs, err := json.Marshal(brokers)
+			h.logger.Info("Brokers retrieved", zap.Int("brokersCount", len(brokers)))
+			services := h.converter.ToServices(brokers)
+			svcs, err := json.Marshal(services)
 			if err != nil {
-				h.Logger.Warn("Error marshalling brokers", zap.Any("brokers", bs))
+				h.logger.Warn("Error marshalling services", zap.Any("services", services))
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			writer.Write(bs)
+			writer.Write(svcs)
 		}
 	}
 }
@@ -260,10 +287,10 @@ func (h *Handler) handleTypes(writer http.ResponseWriter, request *http.Request,
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		h.Logger.Info("EventType retrieved", zap.String("eventType", et.Name))
+		h.logger.Info("EventType retrieved", zap.String("eventType", et.Name))
 		e, err := json.Marshal(et)
 		if err != nil {
-			h.Logger.Warn("Error marshalling EventType", zap.Any("eventType", et))
+			h.logger.Warn("Error marshalling EventType", zap.Any("eventType", et))
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -271,14 +298,14 @@ func (h *Handler) handleTypes(writer http.ResponseWriter, request *http.Request,
 	} else {
 		req := strings.Split(requestURI[3], "?")
 		if len(req) > 2 {
-			h.Logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
+			h.logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
 			writer.WriteHeader(http.StatusBadRequest)
 			return
 		} else if len(req) == 2 {
 			// /namespaces/<namespace>/types?matching={name}
 			r := strings.Split(req[1], "=")
 			if len(r) != 2 || r[0] != "matching" {
-				h.Logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
+				h.logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
 				writer.WriteHeader(http.StatusBadRequest)
 				return
 			}
@@ -291,10 +318,10 @@ func (h *Handler) handleTypes(writer http.ResponseWriter, request *http.Request,
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			h.Logger.Info("EventTypes retrieved", zap.Int("eventTypesCount", len(ets)))
+			h.logger.Info("EventTypes retrieved", zap.Int("eventTypesCount", len(ets)))
 			es, err := json.Marshal(ets)
 			if err != nil {
-				h.Logger.Warn("Error marshalling EventTypes", zap.Any("eventTypes", es))
+				h.logger.Warn("Error marshalling EventTypes", zap.Any("eventTypes", es))
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -306,10 +333,10 @@ func (h *Handler) handleTypes(writer http.ResponseWriter, request *http.Request,
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			h.Logger.Info("EventTypes retrieved", zap.Int("eventTypesCount", len(ets)))
+			h.logger.Info("EventTypes retrieved", zap.Int("eventTypesCount", len(ets)))
 			es, err := json.Marshal(ets)
 			if err != nil {
-				h.Logger.Warn("Error marshalling EventTypes", zap.Any("eventType", ets))
+				h.logger.Warn("Error marshalling EventTypes", zap.Any("eventType", ets))
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
