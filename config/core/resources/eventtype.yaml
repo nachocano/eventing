@@ -22,8 +22,8 @@ spec:
   group: eventing.knative.dev
   versions:
   - &version
-    name: v1alpha1
-    served: false
+    name: v1
+    served: true
     storage: false
     subresources:
       status: {}
@@ -39,25 +39,12 @@ spec:
     - name: Type
       type: string
       jsonPath: ".spec.type"
-    - name: Source
-      type: string
-      jsonPath: ".spec.source"
     - name: Schema
       type: string
       jsonPath: ".spec.schema"
-    - name: Broker
-      type: string
-      jsonPath: ".spec.broker"
     - name: Description
       type: string
       jsonPath: ".spec.description"
-    # TODO remove Status https://github.com/knative/eventing/issues/2750
-    - name: Ready
-      type: string
-      jsonPath: ".status.conditions[?(@.type==\"Ready\")].status"
-    - name: Reason
-      type: string
-      jsonPath: ".status.conditions[?(@.type==\"Ready\")].reason"
   - << : *version
     name: v1beta1
     served: true

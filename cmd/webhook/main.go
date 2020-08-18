@@ -67,8 +67,9 @@ var ourTypes = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
 	eventingv1beta1.SchemeGroupVersion.WithKind("Trigger"):   &eventingv1beta1.Trigger{},
 	eventingv1beta1.SchemeGroupVersion.WithKind("EventType"): &eventingv1beta1.EventType{},
 	// v1
-	eventingv1.SchemeGroupVersion.WithKind("Broker"):  &eventingv1.Broker{},
-	eventingv1.SchemeGroupVersion.WithKind("Trigger"): &eventingv1.Trigger{},
+	eventingv1.SchemeGroupVersion.WithKind("Broker"):    &eventingv1.Broker{},
+	eventingv1.SchemeGroupVersion.WithKind("Trigger"):   &eventingv1.Trigger{},
+	eventingv1.SchemeGroupVersion.WithKind("EventType"): &eventingv1.EventType{},
 
 	// For group messaging.knative.dev.
 	// v1beta1
@@ -263,6 +264,14 @@ func NewConversionController(ctx context.Context, cmw configmap.Watcher) *contro
 				Zygotes: map[string]conversion.ConvertibleObject{
 					eventingv1beta1_: &eventingv1beta1.Broker{},
 					eventingv1_:      &eventingv1.Broker{},
+				},
+			},
+			eventingv1.Kind("EventType"): {
+				DefinitionName: eventing.EventTypesResource.String(),
+				HubVersion:     eventingv1beta1_,
+				Zygotes: map[string]conversion.ConvertibleObject{
+					eventingv1beta1_: &eventingv1beta1.EventType{},
+					eventingv1_:      &eventingv1.EventType{},
 				},
 			},
 
