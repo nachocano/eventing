@@ -17,8 +17,15 @@
 package discovery
 
 import (
+	"context"
+	"fmt"
+
+	"knative.dev/eventing/pkg/reconciler/names"
+	"knative.dev/pkg/system"
+
 	"go.uber.org/zap"
 	eventingv1 "knative.dev/eventing/pkg/apis/eventing/v1"
+	eventtypeinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/eventtype"
 	eventinglisters "knative.dev/eventing/pkg/client/listers/eventing/v1"
 )
 
@@ -28,7 +35,8 @@ type Converter struct {
 	logger *zap.Logger
 }
 
-func NewConverter(eventTypeLister eventinglisters.EventTypeLister, logger *zap.Logger) *Converter {
+func NewConverter(ctx context.Context, logger *zap.Logger) *Converter {
+	eventTypeLister := eventtypeinformer.Get(ctx).Lister()
 	return &Converter{
 		eventTypeLister: eventTypeLister,
 		logger:          logger,
@@ -47,9 +55,9 @@ func (c *Converter) ToService(broker *eventingv1.Broker) *Service {
 	svc := &Service{
 		Id:              string(broker.UID),
 		Name:            broker.Name,
-		Url:             "",
+		Url:             fmt.Sprintf("http://%s/services/%s", names.ServiceHostName("discovery", system.Namespace()), string(broker.UID)),
 		SpecVersions:    []string{"0.3", "1.0"},
-		SubscriptionUrl: "",
+		SubscriptionUrl: fmt.Sprintf("http://%s/subscribe", names.ServiceHostName("subscription", system.Namespace()), string(broker.UID)),
 		Protocols:       []string{"HTTP"},
 	}
 

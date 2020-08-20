@@ -32,15 +32,9 @@ import (
 	eventinglisters "knative.dev/eventing/pkg/client/listers/eventing/v1"
 
 	brokerinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/broker"
-	eventtypeinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/eventtype"
 
 	"knative.dev/eventing/pkg/health"
 	"knative.dev/eventing/pkg/kncloudevents"
-)
-
-const (
-	// noDuration signals that the dispatch step hasn't started
-	noDuration = -1
 )
 
 type Handler struct {
@@ -48,8 +42,6 @@ type Handler struct {
 	receiver *kncloudevents.HttpMessageReceiver
 	// BrokerLister gets broker objects
 	brokerLister eventinglisters.BrokerLister
-	// EventTypeLister gets event types objects
-	eventTypeLister eventinglisters.EventTypeLister
 
 	logger *zap.Logger
 
@@ -61,16 +53,11 @@ func NewHandler(ctx context.Context,
 	logger *zap.Logger) *Handler {
 
 	brokerLister := brokerinformer.Get(ctx).Lister()
-	eventTypeLister := eventtypeinformer.Get(ctx).Lister()
-
-	converter := NewConverter(eventTypeLister, logger)
-
 	return &Handler{
-		receiver:        receiver,
-		brokerLister:    brokerLister,
-		eventTypeLister: eventTypeLister,
-		logger:          logger,
-		converter:       converter,
+		receiver:     receiver,
+		brokerLister: brokerLister,
+		logger:       logger,
+		converter:    NewConverter(ctx, logger),
 	}
 }
 
@@ -108,49 +95,75 @@ func (h *Handler) getBrokers(namespace string) ([]*eventingv1.Broker, error) {
 	return brokers, nil
 }
 
-// TODO this could actually return a list. Correct spec.
-// TODO add type label to EventTypes
-func (h *Handler) getEventType(namespace, type_ string) (*eventingv1.EventType, error) {
-	eventTypes, err := h.eventTypeLister.EventTypes(namespace).List(labels.Everything())
+func (h *Handler) getBrokersForType(namespace, type_ string) ([]*eventingv1.Broker, error) {
+	brokers, err := h.brokerLister.Brokers(namespace).List(labels.Everything())
 	if err != nil {
-		h.logger.Warn("EventTypes list failed")
+		h.logger.Warn("Brokers list failed")
 		return nil, err
 	}
-	for _, eventType := range eventTypes {
-		if eventType.Spec.Type == type_ {
-			return eventType, nil
+	// TODO O(n^2) --> pretty bad
+	bs := make([]*eventingv1.Broker, 0)
+	for _, b := range brokers {
+		if len(b.Spec.EventTypes) > 0 {
+			for _, et := range b.Spec.EventTypes {
+				if et.Type == type_ {
+					bs = append(bs, b)
+					break
+				}
+			}
 		}
 	}
-	h.logger.Warn("EventType not found", zap.String("type", type_))
-	return nil, errors.NewNotFound(schema.GroupResource{}, "")
-}
-
-func (h *Handler) getEventTypes(namespace string) ([]*eventingv1.EventType, error) {
-	eventTypes, err := h.eventTypeLister.EventTypes(namespace).List(labels.Everything())
-	if err != nil {
-		h.logger.Warn("EventTypes list failed")
-		return nil, err
-	}
-	return eventTypes, nil
-}
-
-func (h *Handler) getEventTypesMatching(namespace, typeSubstring string) ([]*eventingv1.EventType, error) {
-	eventTypes, err := h.eventTypeLister.EventTypes(namespace).List(labels.Everything())
-	if err != nil {
-		h.logger.Warn("EventTypes list failed")
-		return nil, err
-	}
-	ets := make([]*eventingv1.EventType, 0)
-	for _, eventType := range eventTypes {
-		if strings.Contains(strings.ToLower(eventType.Spec.Type), strings.ToLower(typeSubstring)) {
-			ets = append(ets, eventType)
-		}
-	}
-	if len(ets) == 0 {
-		h.logger.Warn("EventTypes not found", zap.String("typeSubstring", typeSubstring))
+	if len(bs) == 0 {
+		h.logger.Warn("Brokers not found for type", zap.String("type", type_))
 		return nil, errors.NewNotFound(schema.GroupResource{}, "")
 	}
-	return ets, nil
+	return bs, nil
+}
+
+func (h *Handler) getBrokersPerTypes(namespace string) (map[string][]*eventingv1.Broker, error) {
+	brokers, err := h.brokerLister.Brokers(namespace).List(labels.Everything())
+	if err != nil {
+		h.logger.Warn("Brokers list failed")
+		return nil, err
+	}
+	// TODO improve
+	brokersPerType := make(map[string][]*eventingv1.Broker, 0)
+	for _, b := range brokers {
+		if len(b.Spec.EventTypes) > 0 {
+			for _, et := range b.Spec.EventTypes {
+				brokersPerType[et.Type] = append(brokersPerType[et.Type], b)
+			}
+		}
+	}
+	if len(brokersPerType) == 0 {
+		h.logger.Warn("Brokers not found for types")
+		return nil, errors.NewNotFound(schema.GroupResource{}, "")
+	}
+	return brokersPerType, nil
+}
+
+func (h *Handler) getBrokersPerTypesMatching(namespace, typeSubstring string) (map[string][]*eventingv1.Broker, error) {
+	brokers, err := h.brokerLister.Brokers(namespace).List(labels.Everything())
+	if err != nil {
+		h.logger.Warn("Brokers list failed")
+		return nil, err
+	}
+	// TODO improve
+	brokersPerType := make(map[string][]*eventingv1.Broker, 0)
+	for _, b := range brokers {
+		if len(b.Spec.EventTypes) > 0 {
+			for _, et := range b.Spec.EventTypes {
+				if strings.Contains(strings.ToLower(et.Type), strings.ToLower(typeSubstring)) {
+					brokersPerType[et.Type] = append(brokersPerType[et.Type], b)
+				}
+			}
+		}
+	}
+	if len(brokersPerType) == 0 {
+		h.logger.Warn("Brokers not found for type matching", zap.String("typeSubstring", typeSubstring))
+		return nil, errors.NewNotFound(schema.GroupResource{}, "")
+	}
+	return brokersPerType, nil
 }
 
 func (h *Handler) Start(ctx context.Context) error {
@@ -274,7 +287,8 @@ func (h *Handler) handleServices(writer http.ResponseWriter, request *http.Reque
 func (h *Handler) handleTypes(writer http.ResponseWriter, request *http.Request, requestURI []string, namespace string) {
 	if len(requestURI) == 5 {
 		// /namespaces/<namespace>/types/{type}
-		et, err := h.getEventType(namespace, requestURI[4])
+		type_ := requestURI[4]
+		brokers, err := h.getBrokersForType(namespace, type_)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				writer.WriteHeader(http.StatusNotFound)
@@ -283,14 +297,17 @@ func (h *Handler) handleTypes(writer http.ResponseWriter, request *http.Request,
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		h.logger.Info("EventType retrieved", zap.String("eventType", et.Name))
-		e, err := json.Marshal(et)
+		h.logger.Info("Brokers retrieved", zap.Int("brokersCount", len(brokers)))
+		services := map[string][]*Service{
+			type_: h.converter.ToServices(brokers),
+		}
+		svcs, err := json.Marshal(services)
 		if err != nil {
-			h.logger.Warn("Error marshalling EventType", zap.Any("eventType", et))
+			h.logger.Warn("Error marshalling services", zap.Any("services", services))
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		writer.Write(e)
+		writer.Write(svcs)
 	} else {
 		req := strings.Split(requestURI[3], "?")
 		if len(req) > 2 {
@@ -305,7 +322,7 @@ func (h *Handler) handleTypes(writer http.ResponseWriter, request *http.Request,
 				writer.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			ets, err := h.getEventTypesMatching(namespace, r[1])
+			brokersPerType, err := h.getBrokersPerTypesMatching(namespace, r[1])
 			if err != nil {
 				if errors.IsNotFound(err) {
 					writer.WriteHeader(http.StatusNotFound)
@@ -314,29 +331,41 @@ func (h *Handler) handleTypes(writer http.ResponseWriter, request *http.Request,
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			h.logger.Info("EventTypes retrieved", zap.Int("eventTypesCount", len(ets)))
-			es, err := json.Marshal(ets)
+			h.logger.Info("Brokers per type matching", zap.Int("types", len(brokersPerType)))
+			servicesPerType := make(map[string][]*Service, len(brokersPerType))
+			for type_, brokers := range brokersPerType {
+				servicesPerType[type_] = h.converter.ToServices(brokers)
+			}
+			svcs, err := json.Marshal(servicesPerType)
 			if err != nil {
-				h.logger.Warn("Error marshalling EventTypes", zap.Any("eventTypes", es))
+				h.logger.Warn("Error marshalling services per type", zap.Any("servicesPerType", servicesPerType))
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			writer.Write(es)
+			writer.Write(svcs)
 		} else {
 			// /namespaces/<namespace>/types
-			ets, err := h.getEventTypes(namespace)
+			brokersPerType, err := h.getBrokersPerTypes(namespace)
 			if err != nil {
+				if errors.IsNotFound(err) {
+					writer.WriteHeader(http.StatusNotFound)
+					return
+				}
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			h.logger.Info("EventTypes retrieved", zap.Int("eventTypesCount", len(ets)))
-			es, err := json.Marshal(ets)
+			h.logger.Info("Brokers per type matching", zap.Int("types", len(brokersPerType)))
+			servicesPerType := make(map[string][]*Service, len(brokersPerType))
+			for type_, brokers := range brokersPerType {
+				servicesPerType[type_] = h.converter.ToServices(brokers)
+			}
+			svcs, err := json.Marshal(servicesPerType)
 			if err != nil {
-				h.logger.Warn("Error marshalling EventTypes", zap.Any("eventType", ets))
+				h.logger.Warn("Error marshalling services per type", zap.Any("servicesPerType", servicesPerType))
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			writer.Write(es)
+			writer.Write(svcs)
 		}
 	}
 }
