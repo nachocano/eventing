@@ -57,7 +57,7 @@ func (c *Converter) ToService(broker *eventingv1.Broker) *Service {
 		Name:            broker.Name,
 		Url:             fmt.Sprintf("http://%s/services/%s", names.ServiceHostName("discovery", system.Namespace()), string(broker.UID)),
 		SpecVersions:    []string{"0.3", "1.0"},
-		SubscriptionUrl: fmt.Sprintf("http://%s/subscribe", names.ServiceHostName("subscription", system.Namespace()), string(broker.UID)),
+		SubscriptionUrl: fmt.Sprintf("http://%s/subscribe", names.ServiceHostName("subscription", system.Namespace())),
 		Protocols:       []string{"HTTP"},
 	}
 
