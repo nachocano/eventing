@@ -19,9 +19,12 @@ package mtping
 import (
 	"context"
 	"encoding/json"
+	"math/rand"
 	"time"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
+	cecontext "github.com/cloudevents/sdk-go/v2/context"
+	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -109,21 +112,32 @@ func (a *cronJobsRunner) RemoveSchedule(id cron.EntryID) {
 
 func (a *cronJobsRunner) Start(stopCh <-chan struct{}) {
 	a.cron.Start()
-	<-stopCh // main channel that gets closed once term signal is received
+	<-stopCh
 }
 
 func (a *cronJobsRunner) Stop() {
 	ctx := a.cron.Stop() // no more ticks
-	if ctx != nil {      // ctx gets done when all jobs complete
-		<-ctx.Done() // wait for all to be done.
+	if ctx != nil {
+		// wait for all jobs to be done.
+		<-ctx.Done()
 	}
 }
 
 func (a *cronJobsRunner) cronTick(ctx context.Context, event cloudevents.Event) func() {
 	return func() {
+
+		event := event.Clone()
+		event.SetID(uuid.New().String()) // provide an ID here so we can track it with logging
+		target := cecontext.TargetFrom(ctx).String()
+		source := event.Context.GetSource()
+		time.Sleep(time.Duration(rand.Intn(500)) * time.Millisecond) // provide a delay so not all ping fired instantaneously distribute load on resources.
+
+		a.Logger.Debugf("sending cloudevent id: %s, source: %s, target: %s", event.ID(), source, target)
+
 		if result := a.Client.Send(ctx, event); !cloudevents.IsACK(result) {
 			// Exhausted number of retries. Event is lost.
-			a.Logger.Error("failed to send cloudevent", zap.Any("result", result))
+			a.Logger.Error("failed to send cloudevent result: ", zap.Any("result", result),
+				zap.String("source", source), zap.String("target", target), zap.String("id", event.ID()))
 		}
 	}
 }
