@@ -34,9 +34,9 @@ import (
 	"knative.dev/eventing/pkg/apis/eventing/v1beta1"
 	clientset "knative.dev/eventing/pkg/client/clientset/versioned"
 	listers "knative.dev/eventing/pkg/client/listers/eventing/v1beta1"
-	"knative.dev/eventing/pkg/logging"
 	"knative.dev/eventing/pkg/reconciler/eventtype/producer/resources"
 	"knative.dev/pkg/apis"
+	"knative.dev/pkg/logging"
 )
 
 type Reconciler struct {
@@ -71,7 +71,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, key string) error {
 	var ok bool
 	var original *duckv1.Resource
 	if original, ok = runtimeObj.(*duckv1.Resource); !ok {
-		logging.FromContext(ctx).Error("runtime object is not convertible to Resource duck type: ", zap.Any("runtimeObj", runtimeObj))
+		logging.FromContext(ctx).Errorw("runtime object is not convertible to Resource duck type: ", zap.Any("runtimeObj", runtimeObj))
 		// Avoid re-enqueuing.
 		return nil
 	}
@@ -105,7 +105,7 @@ func (r *Reconciler) reconcile(ctx context.Context, resource *duckv1.Resource) e
 func (r *Reconciler) reconcileEventTypes(ctx context.Context, src *duckv1.Resource) error {
 	current, err := r.getEventTypes(ctx, src)
 	if err != nil {
-		logging.FromContext(ctx).Error("Unable to get existing event types", zap.Error(err))
+		logging.FromContext(ctx).Errorw("Unable to get existing event types", zap.Error(err))
 		return err
 	}
 
@@ -118,14 +118,14 @@ func (r *Reconciler) reconcileEventTypes(ctx context.Context, src *duckv1.Resour
 
 	for _, eventType := range toDelete {
 		if err = r.eventingClientSet.EventingV1beta1().EventTypes(src.Namespace).Delete(eventType.Name, &metav1.DeleteOptions{}); err != nil {
-			logging.FromContext(ctx).Error("Error deleting eventType", zap.Any("eventType", eventType))
+			logging.FromContext(ctx).Errorw("Error deleting eventType", zap.Any("eventType", eventType))
 			return err
 		}
 	}
 
 	for _, eventType := range toCreate {
 		if _, err = r.eventingClientSet.EventingV1beta1().EventTypes(src.Namespace).Create(&eventType); err != nil {
-			logging.FromContext(ctx).Error("Error creating eventType", zap.Any("eventType", eventType))
+			logging.FromContext(ctx).Errorw("Error creating eventType", zap.Any("eventType", eventType))
 			return err
 		}
 	}
@@ -136,7 +136,7 @@ func (r *Reconciler) reconcileEventTypes(ctx context.Context, src *duckv1.Resour
 func (r *Reconciler) getEventTypes(ctx context.Context, src *duckv1.Resource) ([]v1beta1.EventType, error) {
 	etl, err := r.eventTypeLister.EventTypes(src.Namespace).List(labels.SelectorFromSet(resources.Labels(src.Name)))
 	if err != nil {
-		logging.FromContext(ctx).Error("Unable to list event types: %v", zap.Error(err))
+		logging.FromContext(ctx).Errorw("Unable to list event types: %v", zap.Error(err))
 		return nil, err
 	}
 	eventTypes := make([]v1beta1.EventType, 0)
@@ -153,14 +153,14 @@ func (r *Reconciler) makeEventTypes(ctx context.Context, src *duckv1.Resource) (
 	if v, ok := src.Annotations[eventing.EventTypesAnnotationKey]; ok {
 		if err := json.Unmarshal([]byte(v), &ets); err != nil {
 			// Same here, only log, can create the EventType(s) without this info.
-			logging.FromContext(ctx).Error("Error unmarshalling EventTypes", zap.String("annotation", eventing.EventTypesAnnotationKey), zap.Error(err))
+			logging.FromContext(ctx).Errorw("Error unmarshalling EventTypes", zap.String("annotation", eventing.EventTypesAnnotationKey), zap.Error(err))
 		}
 	}
 	eventTypes := make([]v1beta1.EventType, 0, len(ets))
 	for _, et := range ets {
 		schemaURL, err := apis.ParseURL(et.Schema)
 		if err != nil {
-			logging.FromContext(ctx).Warn("Failed to parse schema as a URL", zap.String("schema", et.Schema), zap.Error(err))
+			logging.FromContext(ctx).Warnw("Failed to parse schema as a URL", zap.String("schema", et.Schema), zap.Error(err))
 		}
 		eventType := resources.MakeEventType(&resources.EventTypeArgs{
 			Resource:    src,
