@@ -33,16 +33,16 @@ type Service struct {
 	SubscriptionConfig map[string]string `json:"subscriptionconfig,omitempty"`
 	AuthScope          string            `json:"authscope,omitempty"`
 	Protocols          []string          `json:"protocols"`
-	Types              []Type            `json:"types,omitempty"`
+	Events             []Event           `json:"events,omitempty"`
 }
 
-type Type struct {
+type Event struct {
 	Type              string                 `json:"type"`
 	Description       string                 `json:"description,omitempty"`
 	DataContentType   string                 `json:"datacontenttype,omitempty"`
 	DataSchema        string                 `json:"dataschema,omitempty"`
 	DataSchemaType    string                 `json:"dataschematype,omitempty"`
 	DataSchemaContent string                 `json:"dataschemacontent,omitempty"`
-	SourceTemplate    string                 `json:"sourceTemplate,omitempty"`
+	SourceTemplate    string                 `json:"sourcetemplate,omitempty"`
 	Extensions        []eventingv1.Extension `json:"extensions,omitempty"`
 }

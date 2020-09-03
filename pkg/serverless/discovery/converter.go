@@ -57,11 +57,11 @@ func (c *Converter) ToService(broker *eventingv1.Broker) *Service {
 		Name:            broker.Name,
 		Url:             fmt.Sprintf("http://%s/services/%s", names.ServiceHostName("discovery", system.Namespace()), string(broker.UID)),
 		SpecVersions:    []string{"0.3", "1.0"},
-		SubscriptionUrl: fmt.Sprintf("http://%s/subscribe", names.ServiceHostName("subscription", system.Namespace())),
+		SubscriptionUrl: fmt.Sprintf("http://%s/subscribe/%s/%s", names.ServiceHostName("subscription", system.Namespace()), broker.Namespace, broker.Name),
 		Protocols:       []string{"HTTP"},
 	}
 
-	types := make([]Type, 0)
+	events := make([]Event, 0)
 	// TODO use the names and a fieldSelector and the clientSet to do a single query to the ApiServer?
 	//  Although the lister uses the cache and might be more efficient
 	for _, et := range broker.Spec.EventTypes {
@@ -71,7 +71,7 @@ func (c *Converter) ToService(broker *eventingv1.Broker) *Service {
 			// TODO should return an error?
 			continue
 		}
-		et := Type{
+		et := Event{
 			Type:              eventType.Spec.Type,
 			Description:       eventType.Spec.Description,
 			DataContentType:   eventType.Spec.ContentType,
@@ -81,8 +81,8 @@ func (c *Converter) ToService(broker *eventingv1.Broker) *Service {
 			SourceTemplate:    eventType.Spec.SourceTemplate,
 			Extensions:        eventType.Spec.Extensions,
 		}
-		types = append(types, et)
+		events = append(events, et)
 	}
-	svc.Types = types
+	svc.Events = events
 	return svc
 }
