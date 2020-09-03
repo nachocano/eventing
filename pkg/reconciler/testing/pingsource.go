@@ -25,7 +25,6 @@ import (
 	"knative.dev/pkg/apis"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
 
-	"knative.dev/eventing/pkg/apis/eventing"
 	"knative.dev/eventing/pkg/apis/sources/v1alpha2"
 	"knative.dev/eventing/pkg/apis/sources/v1beta1"
 )
@@ -70,20 +69,6 @@ func WithPingSourceV1A2UID(uid string) PingSourceV1A2Option {
 	return func(c *v1alpha2.PingSource) {
 		c.UID = types.UID(uid)
 	}
-}
-
-func WithPingSourceV1A2ResourceScopeAnnotation(c *v1alpha2.PingSource) {
-	if c.Annotations == nil {
-		c.Annotations = make(map[string]string)
-	}
-	c.Annotations[eventing.ScopeAnnotationKey] = eventing.ScopeResource
-}
-
-func WithPingSourceV1A2ClusterScopeAnnotation(c *v1alpha2.PingSource) {
-	if c.Annotations == nil {
-		c.Annotations = make(map[string]string)
-	}
-	c.Annotations[eventing.ScopeAnnotationKey] = eventing.ScopeCluster
 }
 
 func WithInitPingSourceV1A2Conditions(s *v1alpha2.PingSource) {
@@ -131,12 +116,6 @@ func WithPingSourceV1A2Spec(spec v1alpha2.PingSourceSpec) PingSourceV1A2Option {
 	}
 }
 
-func WithPingSourceV1B1Spec(spec v1beta1.PingSourceSpec) PingSourceV1B1Option {
-	return func(c *v1beta1.PingSource) {
-		c.Spec = spec
-	}
-}
-
 func WithPingSourceV1A2StatusObservedGeneration(generation int64) PingSourceV1A2Option {
 	return func(c *v1alpha2.PingSource) {
 		c.Status.ObservedGeneration = generation
@@ -156,6 +135,72 @@ func WithPingSourceV1A2Finalizers(finalizers ...string) PingSourceV1A2Option {
 }
 
 func WithPingSourceV1A2Deleted(c *v1alpha2.PingSource) {
+	t := metav1.NewTime(time.Unix(1e9, 0))
+	c.SetDeletionTimestamp(&t)
+}
+
+func WithPingSourceV1B1UID(uid string) PingSourceV1B1Option {
+	return func(c *v1beta1.PingSource) {
+		c.UID = types.UID(uid)
+	}
+}
+
+func WithInitPingSourceV1B1Conditions(s *v1beta1.PingSource) {
+	s.Status.InitializeConditions()
+}
+
+func WithPingSourceV1B1SinkNotFound(s *v1beta1.PingSource) {
+	s.Status.MarkNoSink("NotFound", "")
+}
+
+func WithPingSourceV1B1Sink(uri *apis.URL) PingSourceV1B1Option {
+	return func(s *v1beta1.PingSource) {
+		s.Status.MarkSink(uri)
+	}
+}
+
+func WithPingSourceV1B1NotDeployed(name string) PingSourceV1B1Option {
+	return func(s *v1beta1.PingSource) {
+		s.Status.PropagateDeploymentAvailability(NewDeployment(name, "any"))
+	}
+}
+
+func WithPingSourceV1B1Deployed(s *v1beta1.PingSource) {
+	s.Status.PropagateDeploymentAvailability(NewDeployment("any", "any", WithDeploymentAvailable()))
+}
+
+func WithPingSourceV1B1CloudEventAttributes(s *v1beta1.PingSource) {
+	s.Status.CloudEventAttributes = []duckv1.CloudEventAttributes{{
+		Type:   v1beta1.PingSourceEventType,
+		Source: v1beta1.PingSourceSource(s.Namespace, s.Name),
+	}}
+}
+
+func WithPingSourceV1B1Spec(spec v1beta1.PingSourceSpec) PingSourceV1B1Option {
+	return func(c *v1beta1.PingSource) {
+		c.Spec = spec
+	}
+}
+
+func WithPingSourceV1B1StatusObservedGeneration(generation int64) PingSourceV1B1Option {
+	return func(c *v1beta1.PingSource) {
+		c.Status.ObservedGeneration = generation
+	}
+}
+
+func WithPingSourceV1B1ObjectMetaGeneration(generation int64) PingSourceV1B1Option {
+	return func(c *v1beta1.PingSource) {
+		c.ObjectMeta.Generation = generation
+	}
+}
+
+func WithPingSourceV1B1Finalizers(finalizers ...string) PingSourceV1B1Option {
+	return func(c *v1beta1.PingSource) {
+		c.Finalizers = finalizers
+	}
+}
+
+func WithPingSourceV1B1Deleted(c *v1beta1.PingSource) {
 	t := metav1.NewTime(time.Unix(1e9, 0))
 	c.SetDeletionTimestamp(&t)
 }

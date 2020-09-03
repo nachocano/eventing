@@ -29,14 +29,16 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/cache"
+
+	"knative.dev/pkg/apis"
+	duckv1 "knative.dev/pkg/apis/duck/v1"
+	"knative.dev/pkg/logging"
+
 	"knative.dev/eventing/pkg/apis/eventing"
 	"knative.dev/eventing/pkg/apis/eventing/v1"
 	clientset "knative.dev/eventing/pkg/client/clientset/versioned"
 	listers "knative.dev/eventing/pkg/client/listers/eventing/v1"
-	"knative.dev/eventing/pkg/logging"
 	"knative.dev/eventing/pkg/reconciler/source/duck/resources"
-	"knative.dev/pkg/apis"
-	duckv1 "knative.dev/pkg/apis/duck/v1"
 )
 
 type Reconciler struct {
@@ -65,7 +67,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, key string) error {
 	// Convert the namespace/name string into a distinct namespace and name
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		logging.FromContext(ctx).Error("invalid resource key")
+		logging.FromContext(ctx).Errorw("invalid resource key", zap.String("key", key))
 		return nil
 	}
 
@@ -75,7 +77,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, key string) error {
 	var ok bool
 	var original *duckv1.Source
 	if original, ok = runtimeObj.(*duckv1.Source); !ok {
-		logging.FromContext(ctx).Error("runtime object is not convertible to Source duck type: ", zap.Any("runtimeObj", runtimeObj))
+		logging.FromContext(ctx).Errorw("runtime object is not convertible to Source duck type: ", zap.Any("runtimeObj", runtimeObj))
 		// Avoid re-enqueuing.
 		return nil
 	}
@@ -107,7 +109,7 @@ func (r *Reconciler) reconcile(ctx context.Context, source *duckv1.Source) error
 func (r *Reconciler) reconcileEventTypes(ctx context.Context, src *duckv1.Source) error {
 	current, err := r.getEventTypes(ctx, src)
 	if err != nil {
-		logging.FromContext(ctx).Error("Unable to get existing event types", zap.Error(err))
+		logging.FromContext(ctx).Errorw("Unable to get existing event types", zap.Error(err))
 		return err
 	}
 
@@ -121,14 +123,14 @@ func (r *Reconciler) reconcileEventTypes(ctx context.Context, src *duckv1.Source
 
 	for _, eventType := range toDelete {
 		if err = r.eventingClientSet.EventingV1().EventTypes(src.Namespace).Delete(eventType.Name, &metav1.DeleteOptions{}); err != nil {
-			logging.FromContext(ctx).Error("Error deleting eventType", zap.Any("eventType", eventType))
+			logging.FromContext(ctx).Errorw("Error deleting eventType", zap.Any("eventType", eventType))
 			return err
 		}
 	}
 
 	for _, eventType := range toCreate {
 		if _, err = r.eventingClientSet.EventingV1().EventTypes(src.Namespace).Create(&eventType); err != nil {
-			logging.FromContext(ctx).Error("Error creating eventType", zap.Any("eventType", eventType))
+			logging.FromContext(ctx).Errorw("Error creating eventType", zap.Any("eventType", eventType))
 			return err
 		}
 	}
@@ -139,7 +141,7 @@ func (r *Reconciler) reconcileEventTypes(ctx context.Context, src *duckv1.Source
 func (r *Reconciler) getEventTypes(ctx context.Context, src *duckv1.Source) ([]v1.EventType, error) {
 	etl, err := r.eventTypeLister.EventTypes(src.Namespace).List(labels.SelectorFromSet(resources.Labels(r.crdName)))
 	if err != nil {
-		logging.FromContext(ctx).Error("Unable to list event types: %v", zap.Error(err))
+		logging.FromContext(ctx).Errorw("Unable to list event types: %v", zap.Error(err))
 		return nil, err
 	}
 	eventTypes := make([]v1.EventType, 0)
@@ -160,13 +162,13 @@ func (r *Reconciler) makeEventTypes(ctx context.Context, src *duckv1.Source) ([]
 	crd, err := r.crdLister.Get(r.crdName)
 	if err != nil {
 		// Only log, can create the EventType(s) without this info.
-		logging.FromContext(ctx).Error("Error getting CRD for Source", zap.Any("src", src))
+		logging.FromContext(ctx).Errorw("Error getting CRD for Source", zap.Any("src", src))
 	} else {
 		var ets []eventTypeEntry
 		if v, ok := crd.Annotations[eventing.EventTypesAnnotationKey]; ok {
 			if err := json.Unmarshal([]byte(v), &ets); err != nil {
 				// Same here, only log, can create the EventType(s) without this info.
-				logging.FromContext(ctx).Error("Error unmarshalling EventTypes", zap.String("annotation", eventing.EventTypesAnnotationKey), zap.Error(err))
+				logging.FromContext(ctx).Errorw("Error unmarshalling EventTypes", zap.String("annotation", eventing.EventTypesAnnotationKey), zap.Error(err))
 			}
 		}
 		for _, et := range ets {
