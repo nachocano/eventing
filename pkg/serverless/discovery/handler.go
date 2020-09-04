@@ -40,7 +40,7 @@ import (
 type Handler struct {
 	// Receiver receives incoming HTTP requests
 	receiver *kncloudevents.HttpMessageReceiver
-	// BrokerLister gets broker objects
+	// brokerLister gets broker objects
 	brokerLister eventinglisters.BrokerLister
 
 	logger *zap.Logger

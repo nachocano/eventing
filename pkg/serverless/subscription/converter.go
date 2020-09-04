@@ -18,34 +18,98 @@ package subscription
 
 import (
 	"go.uber.org/zap"
+	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	eventingv1 "knative.dev/eventing/pkg/apis/eventing/v1"
 	eventinglisters "knative.dev/eventing/pkg/client/listers/eventing/v1"
+	"knative.dev/pkg/apis"
+	duckv1 "knative.dev/pkg/apis/duck/v1"
 )
 
 type Converter struct {
-	eventTypeLister eventinglisters.EventTypeLister
+	triggerLister eventinglisters.TriggerLister
 
 	logger *zap.Logger
 }
 
-func NewConverter(eventTypeLister eventinglisters.EventTypeLister, logger *zap.Logger) *Converter {
+func NewConverter(triggerLister eventinglisters.TriggerLister, logger *zap.Logger) *Converter {
 	return &Converter{
-		eventTypeLister: eventTypeLister,
-		logger:          logger,
+		triggerLister: triggerLister,
+		logger:        logger,
 	}
 }
 
-func (c *Converter) ToTriggers(subscriptions []Subscription) []eventingv1.Trigger {
-	triggers := make([]eventingv1.Trigger, len(subscriptions))
-	for _, s := range subscriptions {
-		triggers = append(triggers, c.ToTrigger(&s))
+func (c *Converter) ToTrigger(namespacedBroker types.NamespacedName, subscription *Subscription) (*eventingv1.Trigger, error) {
+	url, err := apis.ParseURL(subscription.Sink)
+	if err != nil {
+		return nil, err
 	}
-	return triggers
+	if subscription.Protocol != "HTTP" {
+		return nil, err
+	}
+	var attributes eventingv1.TriggerFilterAttributes
+	if subscription.Filter != nil {
+		if subscription.Filter.Dialect != "basic" {
+			return nil, err
+		}
+		attributes = eventingv1.TriggerFilterAttributes{}
+		for _, f := range subscription.Filter.Filters {
+			if f.Type != "exact" {
+				// only support exact filters
+				continue
+			}
+			attributes[f.Property] = f.Value
+		}
+	}
+
+	tr := &eventingv1.Trigger{
+		ObjectMeta: v1.ObjectMeta{
+			Namespace: namespacedBroker.Namespace,
+			Name:      subscription.Id,
+		},
+		Spec: eventingv1.TriggerSpec{
+			Broker: namespacedBroker.Name,
+			Subscriber: duckv1.Destination{
+				URI: url,
+			},
+		},
+	}
+	if attributes != nil {
+		tr.Spec.Filter = &eventingv1.TriggerFilter{
+			Attributes: attributes,
+		}
+	}
+	return tr, nil
 }
 
-func (c *Converter) ToTrigger(subscription *Subscription) eventingv1.Trigger {
-	tr := eventingv1.Trigger{
-		// TODO populate
+func (c *Converter) ToSubscriptions(triggers []*eventingv1.Trigger) []*Subscription {
+	subscriptions := make([]*Subscription, len(triggers))
+	for _, t := range triggers {
+		subscriptions = append(subscriptions, c.ToSubscription(t))
 	}
-	return tr
+	return subscriptions
+}
+
+func (c *Converter) ToSubscription(trigger *eventingv1.Trigger) *Subscription {
+	s := &Subscription{
+		Id:       trigger.Name,
+		Protocol: "HTTP",
+		Sink:     trigger.Status.SubscriberURI.String(),
+	}
+	if trigger.Spec.Filter != nil {
+		fd := &FilterDialect{
+			Dialect: "basic",
+		}
+		fd.Filters = make([]Filter, len(trigger.Spec.Filter.Attributes))
+		for k, v := range trigger.Spec.Filter.Attributes {
+			f := Filter{
+				Type:     "exact", // TODO only support exact for now
+				Property: k,
+				Value:    v,
+			}
+			fd.Filters = append(fd.Filters, f)
+		}
+		s.Filter = fd
+	}
+	return s
 }

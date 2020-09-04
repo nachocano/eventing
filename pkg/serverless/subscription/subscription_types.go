@@ -19,4 +19,20 @@ package subscription
 // TODO move to apis
 
 type Subscription struct {
+	Id               string            `json:"id"`
+	Protocol         string            `json:"protocol"`
+	ProtocolSettings map[string]string `json:"protocolsettings,omitempty"`
+	Sink             string            `json:"sink"`
+	Filter           *FilterDialect    `json:"filter,omitempty"`
+}
+
+type FilterDialect struct {
+	Dialect string   `json:"dialect"`
+	Filters []Filter `json:"filters"`
+}
+
+type Filter struct {
+	Type     string `json:"type"`
+	Property string `json:"property"`
+	Value    string `json:"value"`
 }

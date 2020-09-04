@@ -18,8 +18,11 @@ package subscription
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/types"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -31,24 +34,23 @@ import (
 	eventinglisters "knative.dev/eventing/pkg/client/listers/eventing/v1"
 
 	brokerinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/broker"
-	eventtypeinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/eventtype"
+	triggerinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/trigger"
 
+	clientset "knative.dev/eventing/pkg/client/clientset/versioned"
+	eventingclient "knative.dev/eventing/pkg/client/injection/client"
 	"knative.dev/eventing/pkg/health"
 	"knative.dev/eventing/pkg/kncloudevents"
-)
-
-const (
-	// noDuration signals that the dispatch step hasn't started
-	noDuration = -1
 )
 
 type Handler struct {
 	// Receiver receives incoming HTTP requests
 	receiver *kncloudevents.HttpMessageReceiver
-	// BrokerLister gets broker objects
+	// brokerLister gets broker objects
 	brokerLister eventinglisters.BrokerLister
-	// EventTypeLister gets event types objects
-	eventTypeLister eventinglisters.EventTypeLister
+	// triggerLister gets trigger objects
+	triggerLister eventinglisters.TriggerLister
+
+	eventingClientSet clientset.Interface
 
 	logger *zap.Logger
 
@@ -60,16 +62,19 @@ func NewHandler(ctx context.Context,
 	logger *zap.Logger) *Handler {
 
 	brokerLister := brokerinformer.Get(ctx).Lister()
-	eventTypeLister := eventtypeinformer.Get(ctx).Lister()
+	triggerLister := triggerinformer.Get(ctx).Lister()
 
-	converter := NewConverter(eventTypeLister, logger)
+	eventingClientSet := eventingclient.Get(ctx)
+
+	converter := NewConverter(triggerLister, logger)
 
 	return &Handler{
-		receiver:        receiver,
-		brokerLister:    brokerLister,
-		eventTypeLister: eventTypeLister,
-		logger:          logger,
-		converter:       converter,
+		receiver:          receiver,
+		brokerLister:      brokerLister,
+		triggerLister:     triggerLister,
+		eventingClientSet: eventingClientSet,
+		logger:            logger,
+		converter:         converter,
 	}
 }
 
@@ -82,29 +87,22 @@ func (h *Handler) getBroker(namespace, name string) (*eventingv1.Broker, error) 
 	return broker, nil
 }
 
-// TODO add UID label to brokers.
-func (h *Handler) getBrokerById(namespace, id string) (*eventingv1.Broker, error) {
-	brokers, err := h.brokerLister.Brokers(namespace).List(labels.Everything())
-	if err != nil {
-		h.logger.Warn("Brokers list failed")
-		return nil, err
-	}
-	for _, broker := range brokers {
-		if string(broker.UID) == id {
-			return broker, nil
-		}
-	}
-	h.logger.Warn("Broker not found", zap.String("id", id))
-	return nil, errors.NewNotFound(schema.GroupResource{}, "")
+func (h *Handler) createTrigger(trigger *eventingv1.Trigger) error {
+	_, err := h.eventingClientSet.EventingV1().Triggers(trigger.Namespace).Create(trigger)
+	return err
 }
 
-func (h *Handler) getBrokers(namespace string) ([]*eventingv1.Broker, error) {
-	brokers, err := h.brokerLister.Brokers(namespace).List(labels.Everything())
+func (h *Handler) getTriggersForBroker(namespace, name string) ([]*eventingv1.Trigger, error) {
+	triggers, err := h.triggerLister.Triggers(namespace).List(labels.SelectorFromSet(map[string]string{"eventing.knative.dev/broker": name}))
 	if err != nil {
-		h.logger.Warn("Brokers list failed")
+		h.logger.Warn("Triggers getter failed")
 		return nil, err
 	}
-	return brokers, nil
+	if len(triggers) == 0 {
+		h.logger.Warn("Triggers for Broker not found", zap.String("broker", name))
+		return nil, errors.NewNotFound(schema.GroupResource{}, "")
+	}
+	return triggers, nil
 }
 
 func (h *Handler) Start(ctx context.Context) error {
@@ -114,40 +112,100 @@ func (h *Handler) Start(ctx context.Context) error {
 func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	h.logger.Info("Called", zap.String("URI", request.RequestURI))
 
-	// validate request method
-	if request.Method != http.MethodGet {
-		h.logger.Warn("unexpected request method", zap.String("method", request.Method))
-		writer.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
 	// validate request URI
 	if request.RequestURI == "/" {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	requestURI := strings.Split(request.RequestURI, "/")
-
-	if len(requestURI) != 4 && len(requestURI) != 5 {
+	nsBrokerName := strings.Split(request.RequestURI, "/")
+	if len(nsBrokerName) != 3 {
 		h.logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	brokerNamespace := nsBrokerName[1]
+	brokerName := nsBrokerName[2]
+	brokerNamespacedName := types.NamespacedName{
+		Name:      brokerName,
+		Namespace: brokerNamespace,
+	}
 
-	// Only allow namespaced-based queries for now.
-	if requestURI[1] != "namespaces" {
-		h.logger.Info("Malformed uri", zap.String("URI", request.RequestURI))
+	if request.Method == http.MethodPost {
+		h.handleCreateSubscription(writer, request, brokerNamespacedName)
+	} else if request.Method == http.MethodGet {
+		h.handleGetSubscriptions(writer, request, brokerNamespacedName)
+	} else if request.Method == http.MethodDelete {
+		h.handleDeleteSubscription(writer, request, brokerNamespacedName)
+	} else if request.Method == http.MethodPut {
+		h.handleUpdateSubscription(writer, request, brokerNamespacedName)
+	}
+
+}
+
+func (h *Handler) handleCreateSubscription(writer http.ResponseWriter, request *http.Request, namespacedBroker types.NamespacedName) {
+	var s Subscription
+	err := json.NewDecoder(request.Body).Decode(&s)
+	if err != nil {
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	//	namespace := requestURI[2]
 
-	//if strings.HasPrefix(requestURI[3], "services") {
-	//	h.handleServices(writer, request, requestURI, namespace)
-	//} else if strings.HasPrefix(requestURI[3], "types") {
-	//	h.handleTypes(writer, request, requestURI, namespace)
-	//} else {
-	//	writer.WriteHeader(http.StatusNotFound)
-	//}
+	trigger, err := h.converter.ToTrigger(namespacedBroker, &s)
+	if err != nil {
+		h.logger.Error("Error converting Subscription to Trigger", zap.Error(err), zap.Any("subscription", s))
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	broker, err := h.getBroker(namespacedBroker.Namespace, namespacedBroker.Name)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		}
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	h.logger.Info("Broker retrieved", zap.String("broker", broker.Name))
+
+	err = h.createTrigger(trigger)
+	if err != nil {
+		if errors.IsAlreadyExists(err) {
+			writer.WriteHeader(http.StatusConflict)
+		} else {
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+	writer.WriteHeader(http.StatusCreated)
+}
+
+func (h *Handler) handleGetSubscriptions(writer http.ResponseWriter, request *http.Request, namespacedBroker types.NamespacedName) {
+	triggers, err := h.getTriggersForBroker(namespacedBroker.Namespace, namespacedBroker.Name)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		}
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	h.logger.Info("Triggers retrieved", zap.Int("triggersCount", len(triggers)))
+	subscriptions := h.converter.ToSubscriptions(triggers)
+	subs, err := json.Marshal(subscriptions)
+	if err != nil {
+		h.logger.Warn("Error marshalling subscriptions", zap.Any("subscriptions", subscriptions))
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	writer.Write(subs)
+}
+
+func (h *Handler) handleDeleteSubscription(writer http.ResponseWriter, request *http.Request, namespacedBroker types.NamespacedName) {
+	// TODO
+}
+
+func (h *Handler) handleUpdateSubscription(writer http.ResponseWriter, request *http.Request, namespacedBroker types.NamespacedName) {
+	// TODO
 }
