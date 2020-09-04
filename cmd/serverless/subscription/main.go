@@ -30,6 +30,7 @@ import (
 
 	cmdbroker "knative.dev/eventing/cmd/mtbroker"
 	"knative.dev/eventing/pkg/kncloudevents"
+	"knative.dev/eventing/pkg/serverless/subscription"
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
 	"knative.dev/pkg/configmap"
 	"knative.dev/pkg/controller"
