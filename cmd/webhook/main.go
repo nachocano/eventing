@@ -44,6 +44,7 @@ import (
 	configsv1alpha1 "knative.dev/eventing/pkg/apis/configs/v1alpha1"
 	"knative.dev/eventing/pkg/apis/eventing"
 	eventingv1 "knative.dev/eventing/pkg/apis/eventing/v1"
+	eventingv1alpha1 "knative.dev/eventing/pkg/apis/eventing/v1alpha1"
 	eventingv1beta1 "knative.dev/eventing/pkg/apis/eventing/v1beta1"
 	"knative.dev/eventing/pkg/apis/flows"
 	flowsv1 "knative.dev/eventing/pkg/apis/flows/v1"
@@ -61,6 +62,8 @@ import (
 )
 
 var ourTypes = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
+	eventingv1alpha1.SchemeGroupVersion.WithKind("Schema"): &eventingv1alpha1.Schema{},
+
 	// For group eventing.knative.dev.
 	// v1beta1
 	eventingv1beta1.SchemeGroupVersion.WithKind("Broker"):    &eventingv1beta1.Broker{},

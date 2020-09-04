@@ -22,7 +22,6 @@ rules:
       - eventing.knative.dev
     resources:
       - brokers
-      - eventtypes
     verbs:
       - get
       - list

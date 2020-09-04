@@ -92,4 +92,14 @@ var (
 		Group:    GroupName,
 		Resource: "eventtypes",
 	}
+
+	SchemaGroupsResource = schema.GroupResource{
+		Group:    GroupName,
+		Resource: "schemagroups",
+	}
+
+	SchemasResource = schema.GroupResource{
+		Group:    GroupName,
+		Resource: "schemas",
+	}
 )

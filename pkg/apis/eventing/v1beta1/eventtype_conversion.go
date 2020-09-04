@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	duckv1alpha1 "knative.dev/eventing/pkg/apis/duck/v1alpha1"
+
 	"knative.dev/eventing/pkg/apis/eventing/v1"
 	"knative.dev/pkg/apis"
 )
@@ -30,8 +32,11 @@ func (source *EventType) ConvertTo(ctx context.Context, to apis.Convertible) err
 	case *v1.EventType:
 		sink.ObjectMeta = source.ObjectMeta
 		sink.Spec.Type = source.Spec.Type
-		sink.Spec.Schema = source.Spec.Schema
-		sink.Spec.SchemaData = source.Spec.SchemaData
+		if source.Spec.Schema != nil {
+			sink.Spec.Schema = &duckv1alpha1.Schema{
+				URI: source.Spec.Schema,
+			}
+		}
 		sink.Spec.Description = source.Spec.Description
 		return nil
 	default:
@@ -45,8 +50,9 @@ func (sink *EventType) ConvertFrom(ctx context.Context, from apis.Convertible) e
 	case *v1.EventType:
 		sink.ObjectMeta = source.ObjectMeta
 		sink.Spec.Type = source.Spec.Type
-		sink.Spec.Schema = source.Spec.Schema
-		sink.Spec.SchemaData = source.Spec.SchemaData
+		if source.Spec.Schema != nil && source.Spec.Schema.URI != nil {
+			sink.Spec.Schema = source.Spec.Schema.URI
+		}
 		sink.Spec.Description = source.Spec.Description
 		return nil
 	default:

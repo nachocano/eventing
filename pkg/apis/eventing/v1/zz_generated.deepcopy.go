@@ -23,6 +23,7 @@ package v1
 import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	apisduckv1 "knative.dev/eventing/pkg/apis/duck/v1"
+	v1alpha1 "knative.dev/eventing/pkg/apis/duck/v1alpha1"
 	apis "knative.dev/pkg/apis"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
 )
@@ -202,7 +203,7 @@ func (in *EventTypeSpec) DeepCopyInto(out *EventTypeSpec) {
 	*out = *in
 	if in.Schema != nil {
 		in, out := &in.Schema, &out.Schema
-		*out = new(apis.URL)
+		*out = new(v1alpha1.Schema)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Extensions != nil {

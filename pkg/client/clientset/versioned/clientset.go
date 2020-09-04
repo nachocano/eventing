@@ -26,6 +26,7 @@ import (
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
 	configsv1alpha1 "knative.dev/eventing/pkg/client/clientset/versioned/typed/configs/v1alpha1"
 	eventingv1 "knative.dev/eventing/pkg/client/clientset/versioned/typed/eventing/v1"
+	eventingv1alpha1 "knative.dev/eventing/pkg/client/clientset/versioned/typed/eventing/v1alpha1"
 	eventingv1beta1 "knative.dev/eventing/pkg/client/clientset/versioned/typed/eventing/v1beta1"
 	flowsv1 "knative.dev/eventing/pkg/client/clientset/versioned/typed/flows/v1"
 	flowsv1beta1 "knative.dev/eventing/pkg/client/clientset/versioned/typed/flows/v1beta1"
@@ -39,6 +40,7 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	ConfigsV1alpha1() configsv1alpha1.ConfigsV1alpha1Interface
+	EventingV1alpha1() eventingv1alpha1.EventingV1alpha1Interface
 	EventingV1beta1() eventingv1beta1.EventingV1beta1Interface
 	EventingV1() eventingv1.EventingV1Interface
 	FlowsV1beta1() flowsv1beta1.FlowsV1beta1Interface
@@ -55,6 +57,7 @@ type Interface interface {
 type Clientset struct {
 	*discovery.DiscoveryClient
 	configsV1alpha1  *configsv1alpha1.ConfigsV1alpha1Client
+	eventingV1alpha1 *eventingv1alpha1.EventingV1alpha1Client
 	eventingV1beta1  *eventingv1beta1.EventingV1beta1Client
 	eventingV1       *eventingv1.EventingV1Client
 	flowsV1beta1     *flowsv1beta1.FlowsV1beta1Client
@@ -69,6 +72,11 @@ type Clientset struct {
 // ConfigsV1alpha1 retrieves the ConfigsV1alpha1Client
 func (c *Clientset) ConfigsV1alpha1() configsv1alpha1.ConfigsV1alpha1Interface {
 	return c.configsV1alpha1
+}
+
+// EventingV1alpha1 retrieves the EventingV1alpha1Client
+func (c *Clientset) EventingV1alpha1() eventingv1alpha1.EventingV1alpha1Interface {
+	return c.eventingV1alpha1
 }
 
 // EventingV1beta1 retrieves the EventingV1beta1Client
@@ -141,6 +149,10 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
+	cs.eventingV1alpha1, err = eventingv1alpha1.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
 	cs.eventingV1beta1, err = eventingv1beta1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
@@ -190,6 +202,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
 	cs.configsV1alpha1 = configsv1alpha1.NewForConfigOrDie(c)
+	cs.eventingV1alpha1 = eventingv1alpha1.NewForConfigOrDie(c)
 	cs.eventingV1beta1 = eventingv1beta1.NewForConfigOrDie(c)
 	cs.eventingV1 = eventingv1.NewForConfigOrDie(c)
 	cs.flowsV1beta1 = flowsv1beta1.NewForConfigOrDie(c)
@@ -208,6 +221,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.configsV1alpha1 = configsv1alpha1.New(c)
+	cs.eventingV1alpha1 = eventingv1alpha1.New(c)
 	cs.eventingV1beta1 = eventingv1beta1.New(c)
 	cs.eventingV1 = eventingv1.New(c)
 	cs.flowsV1beta1 = flowsv1beta1.New(c)

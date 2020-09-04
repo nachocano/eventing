@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	duckv1alpha1 "knative.dev/eventing/pkg/apis/duck/v1alpha1"
 	"knative.dev/pkg/apis"
 	"knative.dev/pkg/kmeta"
 )
@@ -54,23 +55,10 @@ type EventTypeSpec struct {
 	// Type represents the CloudEvents type. It is authoritative.
 	Type string `json:"type"`
 
-	// TODO move schema to a new type SchemaGroup or something...
-
-	// Schema is a URI, it represents the CloudEvents schemaurl extension attribute.
-	// It may be a JSON schema, a protobuf schema, etc. It is optional.
-	// +optional. If set, SchemaData shouldn't be specified.
-	Schema *apis.URL `json:"schema,omitempty"`
-	// SchemaData allows the CloudEvents schema to be stored directly in the
-	// EventType. Content is dependent on the encoding. Optional attribute.
-	// The contents are not validated or manipulated by the system.
-	// +optional
-	SchemaData string `json:"schemaData,omitempty"`
-
-	// SchemaDataType represents the type of schema represented in SchemaData.
-	// +optional. Required if SchemaData is specified
-	SchemaDataType string `json:"schemaDataType,omitempty"`
+	Schema *duckv1alpha1.Schema `json:"schema,omitempty"`
 
 	// ContentType is the ContentType of the data payload.
+	// TODO should be part of Schema?
 	ContentType string `json:"contentType,omitempty"`
 
 	// Description is an optional field used to describe the EventType, in any meaningful way.

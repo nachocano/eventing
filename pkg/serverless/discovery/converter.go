@@ -26,19 +26,24 @@ import (
 	"go.uber.org/zap"
 	eventingv1 "knative.dev/eventing/pkg/apis/eventing/v1"
 	eventtypeinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/eventtype"
+	schemainformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1alpha1/schema"
 	eventinglisters "knative.dev/eventing/pkg/client/listers/eventing/v1"
+	eventingv1alpha1listers "knative.dev/eventing/pkg/client/listers/eventing/v1alpha1"
 )
 
 type Converter struct {
 	eventTypeLister eventinglisters.EventTypeLister
+	schemaLister    eventingv1alpha1listers.SchemaLister
 
 	logger *zap.Logger
 }
 
 func NewConverter(ctx context.Context, logger *zap.Logger) *Converter {
 	eventTypeLister := eventtypeinformer.Get(ctx).Lister()
+	schemaLister := schemainformer.Get(ctx).Lister()
 	return &Converter{
 		eventTypeLister: eventTypeLister,
+		schemaLister:    schemaLister,
 		logger:          logger,
 	}
 }
@@ -67,17 +72,37 @@ func (c *Converter) ToService(broker *eventingv1.Broker) *Service {
 	for _, et := range broker.Spec.EventTypes {
 		eventType, err := c.eventTypeLister.EventTypes(broker.Namespace).Get(et.Name)
 		if err != nil {
-			c.logger.Error("Error retrieving eventType", zap.String("eventType", et.Name), zap.Any("broker", broker))
+			c.logger.Error("Error retrieving eventType", zap.Error(err), zap.String("eventType", et.Name), zap.Any("broker", broker))
 			// TODO should return an error?
 			continue
+		}
+		var dataSchema, dataSchemaType, dataSchemaContent string
+		if eventType.Spec.Schema != nil {
+			dataSchema = eventType.Spec.Schema.URI.String()
+
+			if eventType.Spec.Schema.Ref != nil {
+				schema, err := c.schemaLister.Schemas(broker.Namespace).Get(eventType.Spec.Schema.Ref.Name)
+				if err != nil {
+					c.logger.Error("Error retrieving schema", zap.Error(err), zap.String("schema", eventType.Spec.Schema.Ref.Name), zap.Any("broker", broker))
+					// TODO should return an error?
+					continue
+				}
+				dataSchemaType = schema.Spec.Format
+				for _, v := range schema.Spec.Versions {
+					if v.Version == eventType.Spec.Schema.Ref.Version {
+						dataSchemaContent = v.Body
+						break
+					}
+				}
+			}
 		}
 		et := Event{
 			Type:              eventType.Spec.Type,
 			Description:       eventType.Spec.Description,
 			DataContentType:   eventType.Spec.ContentType,
-			DataSchema:        eventType.Spec.Schema.String(),
-			DataSchemaType:    eventType.Spec.SchemaDataType,
-			DataSchemaContent: eventType.Spec.SchemaData,
+			DataSchema:        dataSchema,
+			DataSchemaType:    dataSchemaType,
+			DataSchemaContent: dataSchemaContent,
 			SourceTemplate:    eventType.Spec.SourceTemplate,
 			Extensions:        eventType.Spec.Extensions,
 		}

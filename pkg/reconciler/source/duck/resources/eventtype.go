@@ -23,6 +23,7 @@ import (
 	"knative.dev/eventing/pkg/apis/eventing/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	duckv1alpha1 "knative.dev/eventing/pkg/apis/duck/v1alpha1"
 	"knative.dev/pkg/apis"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
 	"knative.dev/pkg/ptr"
@@ -63,7 +64,10 @@ func MakeEventType(args *EventTypeArgs) *v1.EventType {
 			SourceTemplate: args.SourceTemplate,
 			Extensions:     args.Extensions,
 			Description:    args.Description,
-			Schema:         args.CeSchema,
+			// TODO won't be able to set a ref to the schema hosted here.
+			Schema: &duckv1alpha1.Schema{
+				URI: args.CeSchema,
+			},
 			// TODO add more stuff here.
 		},
 	}
