@@ -24,7 +24,7 @@ spec:
     - &version
       name: v1
       served: true
-      storage: false
+      storage: true
       subresources:
         status: {}
       schema:
@@ -48,7 +48,7 @@ spec:
     - << : *version
       name: v1beta1
       served: true
-      storage: true
+      storage: false
   names:
     kind: EventType
     plural: eventtypes
