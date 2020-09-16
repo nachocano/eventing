@@ -432,9 +432,13 @@ func TestAllBranches(t *testing.T) {
 						{Subscriber: createSubscriber(0)},
 					})))},
 			WantErr: false,
-			WantDeletes: []clientgotesting.DeleteActionImpl{
-				{Name: resources.ParallelBranchChannelName(parallelName, 0)},
-			},
+			WantDeletes: []clientgotesting.DeleteActionImpl{{
+				ActionImpl: clientgotesting.ActionImpl{
+					Namespace: testNS,
+					Resource:  v1.SchemeGroupVersion.WithResource("subscriptions"),
+				},
+				Name: resources.ParallelBranchChannelName(parallelName, 0),
+			}},
 			WantCreates: []runtime.Object{
 				createChannel(parallelName),
 				createBranchChannel(parallelName, 0),

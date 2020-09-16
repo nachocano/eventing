@@ -30,10 +30,11 @@ import (
 
 	clientgotesting "k8s.io/client-go/testing"
 	eventingduckv1 "knative.dev/eventing/pkg/apis/duck/v1"
+	v1 "knative.dev/eventing/pkg/apis/duck/v1"
 	"knative.dev/eventing/pkg/apis/eventing"
 	eventingv1 "knative.dev/eventing/pkg/apis/eventing/v1"
 	messagingv1 "knative.dev/eventing/pkg/apis/messaging/v1"
-	sourcesv1alpha2 "knative.dev/eventing/pkg/apis/sources/v1alpha2"
+	sourcesv1beta1 "knative.dev/eventing/pkg/apis/sources/v1beta1"
 	fakeeventingclient "knative.dev/eventing/pkg/client/injection/client/fake"
 	"knative.dev/eventing/pkg/client/injection/ducks/duck/v1/channelable"
 	"knative.dev/eventing/pkg/client/injection/reconciler/eventing/v1/trigger"
@@ -66,10 +67,8 @@ const (
 
 	configMapName = "test-configmap"
 
-	triggerName     = "test-trigger"
-	triggerUID      = "test-trigger-uid"
-	triggerNameLong = "test-trigger-name-is-a-long-name"
-	triggerUIDLong  = "cafed00d-cafed00d-cafed00d-cafed00d-cafed00d"
+	triggerName = "test-trigger"
+	triggerUID  = "test-trigger-uid"
 
 	triggerChannelAPIVersion = "messaging.knative.dev/v1"
 	triggerChannelKind       = "InMemoryChannel"
@@ -85,7 +84,7 @@ const (
 	testSchedule                = "*/2 * * * *"
 	testData                    = "data"
 	sinkName                    = "testsink"
-	dependencyAnnotation        = "{\"kind\":\"PingSource\",\"name\":\"test-ping-source\",\"apiVersion\":\"sources.knative.dev/v1alpha2\"}"
+	dependencyAnnotation        = "{\"kind\":\"PingSource\",\"name\":\"test-ping-source\",\"apiVersion\":\"sources.knative.dev/v1beta1\"}"
 	subscriberURIReference      = "foo"
 	subscriberResolvedTargetURI = "http://example.com/subscriber/foo"
 
@@ -352,6 +351,10 @@ func TestReconcile(t *testing.T) {
 					WithTriggerDependencyReady()),
 			}},
 			WantDeletes: []clientgotesting.DeleteActionImpl{{
+				ActionImpl: clientgotesting.ActionImpl{
+					Namespace: testNS,
+					Resource:  v1.SchemeGroupVersion.WithResource("subscriptions"),
+				},
 				Name: subscriptionName,
 			}},
 			WantCreates: []runtime.Object{
@@ -447,7 +450,7 @@ func TestReconcile(t *testing.T) {
 					WithInitTriggerConditions,
 				)}...),
 			WantEvents: []string{
-				Eventf(corev1.EventTypeWarning, "InternalError", `failed to get ref &ObjectReference{Kind:Service,Namespace:test-namespace,Name:subscriber-name,UID:,APIVersion:serving.knative.dev/v1,ResourceVersion:,FieldPath:,}: services.serving.knative.dev "subscriber-name" not found`),
+				Eventf(corev1.EventTypeWarning, "InternalError", `services.serving.knative.dev "subscriber-name" not found`),
 			},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewTrigger(triggerName, testNS, brokerName,
@@ -456,7 +459,7 @@ func TestReconcile(t *testing.T) {
 					// The first reconciliation will initialize the status conditions.
 					WithInitTriggerConditions,
 					WithTriggerBrokerReady(),
-					WithTriggerSubscriberResolvedFailed("Unable to get the Subscriber's URI", `failed to get ref &ObjectReference{Kind:Service,Namespace:test-namespace,Name:subscriber-name,UID:,APIVersion:serving.knative.dev/v1,ResourceVersion:,FieldPath:,}: services.serving.knative.dev "subscriber-name" not found`),
+					WithTriggerSubscriberResolvedFailed("Unable to get the Subscriber's URI", `services.serving.knative.dev "subscriber-name" not found`),
 				),
 			}},
 			WantErr: true,
@@ -757,46 +760,6 @@ func createChannel(namespace string, ready bool) *unstructured.Unstructured {
 	}
 }
 
-func createChannelNoHostInUrl(namespace string) *unstructured.Unstructured {
-	name := fmt.Sprintf("%s-kne-trigger", brokerName)
-	labels := map[string]interface{}{
-		eventing.BrokerLabelKey:                 brokerName,
-		"eventing.knative.dev/brokerEverything": "true",
-	}
-	annotations := map[string]interface{}{
-		"eventing.knative.dev/scope": "cluster",
-	}
-
-	return &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "messaging.knative.dev/v1",
-			"kind":       "InMemoryChannel",
-			"metadata": map[string]interface{}{
-				"creationTimestamp": nil,
-				"namespace":         namespace,
-				"name":              name,
-				"ownerReferences": []interface{}{
-					map[string]interface{}{
-						"apiVersion":         "eventing.knative.dev/v1",
-						"blockOwnerDeletion": true,
-						"controller":         true,
-						"kind":               "Broker",
-						"name":               brokerName,
-						"uid":                "",
-					},
-				},
-				"labels":      labels,
-				"annotations": annotations,
-			},
-			"status": map[string]interface{}{
-				"address": map[string]interface{}{
-					"url": "http://",
-				},
-			},
-		},
-	}
-}
-
 func createTriggerChannelRef() *corev1.ObjectReference {
 	return &corev1.ObjectReference{
 		APIVersion: "messaging.knative.dev/v1",
@@ -902,26 +865,6 @@ func makeReadySubscription() *messagingv1.Subscription {
 	return s
 }
 
-func makeReadySubscriptionDeprecatedName(triggerName, triggerUID string) *messagingv1.Subscription {
-	s := makeFilterSubscription()
-	t := NewTrigger(triggerName, testNS, brokerName)
-	t.UID = types.UID(triggerUID)
-	s.Name = utils.GenerateFixedName(t, fmt.Sprintf("%s-%s", brokerName, triggerName))
-	s.Status = *eventingv1.TestHelper.ReadySubscriptionStatus()
-	return s
-}
-
-func makeReadySubscriptionWithCustomData(triggerName, triggerUID string) *messagingv1.Subscription {
-	t := makeTrigger()
-	t.Name = triggerName
-	t.UID = types.UID(triggerUID)
-
-	uri := makeServiceURI()
-	uri.Path = fmt.Sprintf("/triggers/%s/%s/%s", testNS, triggerName, triggerUID)
-
-	return resources.NewSubscription(t, createTriggerChannelRef(), makeBrokerRef(), uri, makeEmptyDelivery())
-}
-
 func makeSubscriberAddressableAsUnstructured() *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -946,39 +889,37 @@ func makeFalseStatusSubscription() *messagingv1.Subscription {
 	return s
 }
 
-func makeFalseStatusPingSource() *sourcesv1alpha2.PingSource {
-	return rtv1alpha1.NewPingSourceV1Alpha2(pingSourceName, testNS, rtv1alpha1.WithPingSourceV1A2SinkNotFound)
+func makeFalseStatusPingSource() *sourcesv1beta1.PingSource {
+	return rtv1alpha1.NewPingSourceV1Beta1(pingSourceName, testNS, rtv1alpha1.WithPingSourceV1B1SinkNotFound)
 }
 
-func makeUnknownStatusCronJobSource() *sourcesv1alpha2.PingSource {
-	cjs := rtv1alpha1.NewPingSourceV1Alpha2(pingSourceName, testNS)
+func makeUnknownStatusCronJobSource() *sourcesv1beta1.PingSource {
+	cjs := rtv1alpha1.NewPingSourceV1Beta1(pingSourceName, testNS)
 	cjs.Status.InitializeConditions()
 	return cjs
 }
 
-func makeGenerationNotEqualPingSource() *sourcesv1alpha2.PingSource {
+func makeGenerationNotEqualPingSource() *sourcesv1beta1.PingSource {
 	c := makeFalseStatusPingSource()
 	c.Generation = currentGeneration
 	c.Status.ObservedGeneration = outdatedGeneration
 	return c
 }
 
-func makeReadyPingSource() *sourcesv1alpha2.PingSource {
+func makeReadyPingSource() *sourcesv1beta1.PingSource {
 	u, _ := apis.ParseURL(sinkURI)
-	return rtv1alpha1.NewPingSourceV1Alpha2(pingSourceName, testNS,
-		rtv1alpha1.WithPingSourceV1A2Spec(sourcesv1alpha2.PingSourceSpec{
+	return rtv1alpha1.NewPingSourceV1Beta1(pingSourceName, testNS,
+		rtv1alpha1.WithPingSourceV1B1Spec(sourcesv1beta1.PingSourceSpec{
 			Schedule: testSchedule,
 			JsonData: testData,
 			SourceSpec: duckv1.SourceSpec{
 				Sink: brokerDestv1,
 			},
 		}),
-		rtv1alpha1.WithInitPingSourceV1A2Conditions,
-		rtv1alpha1.WithValidPingSourceV1A2Schedule,
-		rtv1alpha1.WithValidPingSourceV1A2Resources,
-		rtv1alpha1.WithPingSourceV1A2Deployed,
-		rtv1alpha1.WithPingSourceV1A2CloudEventAttributes,
-		rtv1alpha1.WithPingSourceV1A2Sink(u),
+		rtv1alpha1.WithInitPingSourceV1B1Conditions,
+		rtv1alpha1.WithPingSourceV1B1Deployed,
+		rtv1alpha1.WithPingSourceV1B1CloudEventAttributes,
+		rtv1alpha1.WithPingSourceV1B1Sink(u),
 	)
 }
 func makeSubscriberKubernetesServiceAsUnstructured() *unstructured.Unstructured {

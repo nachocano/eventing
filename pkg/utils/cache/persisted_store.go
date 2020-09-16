@@ -30,8 +30,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	duckv1 "knative.dev/pkg/apis/duck/v1"
-
-	"knative.dev/eventing/pkg/logging"
+	"knative.dev/pkg/logging"
 )
 
 const (
@@ -123,7 +122,7 @@ func (p *persistedStore) Run(ctx context.Context) {
 		case <-p.syncCh:
 			atomic.StoreInt32(&p.syncing, 1)
 			if err := p.doSync(ctx.Done()); err != nil {
-				logger.Warn("failed to persist resources", zap.Error(err))
+				logger.Warnw("failed to persist resources", zap.Error(err))
 
 				// Retry
 				p.sync()
@@ -186,7 +185,7 @@ func (p *persistedStore) doSync(stopCh <-chan struct{}) error {
 
 	if oldconfig, ok := cm.Data[ResourcesKey]; !ok || oldconfig != newconfig {
 		cm.Data[ResourcesKey] = newconfig
-		_, err = p.kubeClient.CoreV1().ConfigMaps(p.namespace).Update(cm)
+		_, err = p.kubeClient.CoreV1().ConfigMaps(p.namespace).Update(context.Background(), cm, metav1.UpdateOptions{})
 
 		if err != nil {
 			return err
@@ -196,7 +195,7 @@ func (p *persistedStore) doSync(stopCh <-chan struct{}) error {
 }
 
 func (p *persistedStore) load() (*corev1.ConfigMap, error) {
-	cm, err := p.kubeClient.CoreV1().ConfigMaps(p.namespace).Get(p.name, metav1.GetOptions{})
+	cm, err := p.kubeClient.CoreV1().ConfigMaps(p.namespace).Get(context.Background(), p.name, metav1.GetOptions{})
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return nil, err
@@ -217,7 +216,7 @@ func (p *persistedStore) load() (*corev1.ConfigMap, error) {
 			Data: map[string]string{},
 		}
 
-		return p.kubeClient.CoreV1().ConfigMaps(p.namespace).Create(cm)
+		return p.kubeClient.CoreV1().ConfigMaps(p.namespace).Create(context.Background(), cm, metav1.CreateOptions{})
 	}
 
 	return cm, nil

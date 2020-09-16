@@ -35,8 +35,10 @@ rules:
   - apiGroups:
       - "sources.knative.dev"
     resources:
+      - "apiserversources"
       - "containersources"
       - "sinkbindings"
+      - "pingsources"
     verbs: &everything
       - "get"
       - "list"

@@ -18,6 +18,7 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -49,8 +50,10 @@ func TestPingSourceV1Alpha2(t *testing.T) {
 	client := setup(t, true)
 	defer tearDown(client)
 
+	ctx := context.Background()
+
 	// create event logger pod and service
-	eventTracker, _ := recordevents.StartEventRecordOrFail(client, recordEventPodName)
+	eventTracker, _ := recordevents.StartEventRecordOrFail(ctx, client, recordEventPodName)
 	// create cron job source
 	data := fmt.Sprintf(`{"msg":"TestPingSource %s"}`, uuid.NewUUID())
 	source := eventingtesting.NewPingSourceV1Alpha2(
@@ -68,47 +71,7 @@ func TestPingSourceV1Alpha2(t *testing.T) {
 	client.CreatePingSourceV1Alpha2OrFail(source)
 
 	// wait for all test resources to be ready
-	client.WaitForAllTestResourcesReadyOrFail()
-
-	// verify the logger service receives the event and only once
-	eventTracker.AssertExact(1, recordevents.MatchEvent(
-		HasSource(sourcesv1alpha2.PingSourceSource(client.Namespace, sourceName)),
-		HasData([]byte(data)),
-	))
-}
-
-func TestPingSourceV1Alpha2ResourceScope(t *testing.T) {
-	const (
-		sourceName = "e2e-ping-source"
-		// Every 1 minute starting from now
-
-		recordEventPodName = "e2e-ping-source-logger-pod-v1alpha2rs"
-	)
-
-	client := setup(t, true)
-	defer tearDown(client)
-
-	// create event logger pod and service
-	eventTracker, _ := recordevents.StartEventRecordOrFail(client, recordEventPodName)
-	// create cron job source
-	data := fmt.Sprintf(`{"msg":"TestPingSource %s"}`, uuid.NewUUID())
-	source := eventingtesting.NewPingSourceV1Alpha2(
-		sourceName,
-		client.Namespace,
-		eventingtesting.WithPingSourceV1A2ResourceScopeAnnotation,
-		eventingtesting.WithPingSourceV1A2Spec(sourcesv1alpha2.PingSourceSpec{
-			JsonData: data,
-			SourceSpec: duckv1.SourceSpec{
-				Sink: duckv1.Destination{
-					Ref: resources.KnativeRefForService(recordEventPodName, client.Namespace),
-				},
-			},
-		}),
-	)
-	client.CreatePingSourceV1Alpha2OrFail(source)
-
-	// wait for all test resources to be ready
-	client.WaitForAllTestResourcesReadyOrFail()
+	client.WaitForAllTestResourcesReadyOrFail(ctx)
 
 	// verify the logger service receives the event and only once
 	eventTracker.AssertExact(1, recordevents.MatchEvent(
@@ -124,6 +87,8 @@ func TestPingSourceV1Alpha2EventTypes(t *testing.T) {
 
 	client := setup(t, true)
 	defer tearDown(client)
+
+	ctx := context.Background()
 
 	// Label namespace so that it creates the default broker.
 	if err := client.LabelNamespace(map[string]string{sugar.InjectionLabelKey: sugar.InjectionEnabledLabelValue}); err != nil {
@@ -150,10 +115,10 @@ func TestPingSourceV1Alpha2EventTypes(t *testing.T) {
 	client.CreatePingSourceV1Alpha2OrFail(source)
 
 	// wait for all test resources to be ready
-	client.WaitForAllTestResourcesReadyOrFail()
+	client.WaitForAllTestResourcesReadyOrFail(ctx)
 
 	// Verify that an EventType was created.
-	eventTypes, err := waitForEventTypes(client, 1)
+	eventTypes, err := waitForEventTypes(ctx, client, 1)
 	if err != nil {
 		t.Fatalf("Waiting for EventTypes: %v", err)
 	}

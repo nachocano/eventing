@@ -713,9 +713,13 @@ func TestAllCases(t *testing.T) {
 					WithSequenceSteps([]v1.SequenceStep{{Destination: createDestination(0)}}))),
 			},
 			WantErr: false,
-			WantDeletes: []clientgotesting.DeleteActionImpl{
-				{Name: resources.SequenceChannelName(sequenceName, 0)},
-			},
+			WantDeletes: []clientgotesting.DeleteActionImpl{{
+				ActionImpl: clientgotesting.ActionImpl{
+					Namespace: testNS,
+					Resource:  v1.SchemeGroupVersion.WithResource("subscriptions"),
+				},
+				Name: resources.SequenceChannelName(sequenceName, 0),
+			}},
 			WantCreates: []runtime.Object{
 				resources.NewSubscription(0, NewSequence(sequenceName, testNS,
 					WithSequenceChannelTemplateSpec(imc),

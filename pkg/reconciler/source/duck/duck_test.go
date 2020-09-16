@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientgotesting "k8s.io/client-go/testing"
+	v1 "knative.dev/eventing/pkg/apis/duck/v1"
 	"knative.dev/eventing/pkg/apis/eventing/v1beta1"
 	fakeeventingclient "knative.dev/eventing/pkg/client/injection/client/fake"
 	"knative.dev/eventing/pkg/reconciler/source/duck/resources"
@@ -117,9 +118,13 @@ func TestAllCases(t *testing.T) {
 				makeEventTypeWithName("other-type", "my-source-1", "name-1"),
 			},
 			Key: testNS + "/" + sourceName,
-			WantDeletes: []clientgotesting.DeleteActionImpl{
-				{Name: "name-1"},
-			},
+			WantDeletes: []clientgotesting.DeleteActionImpl{{
+				ActionImpl: clientgotesting.ActionImpl{
+					Namespace: testNS,
+					Resource:  v1.SchemeGroupVersion.WithResource("eventtypes"),
+				},
+				Name: "name-1",
+			}},
 			WantCreates: []runtime.Object{
 				makeEventType("my-type-1", "http://my-source-1"),
 				makeEventType("my-type-2", "http://my-source-1"),
@@ -146,7 +151,7 @@ func TestAllCases(t *testing.T) {
 	logger := logtesting.TestLogger(t)
 	table.Test(t, MakeFactory(func(ctx context.Context, listers *Listers, cmw configmap.Watcher) controller.Reconciler {
 		ctx = source.WithDuck(ctx)
-		_, sourceLister, _ := source.Get(ctx).Get(gvr)
+		_, sourceLister, _ := source.Get(ctx).Get(ctx, gvr)
 		return &Reconciler{
 			crdLister:         listers.GetCustomResourceDefinitionLister(),
 			eventTypeLister:   listers.GetEventTypeLister(),

@@ -18,7 +18,7 @@ limitations under the License.
 package conformance
 
 import (
-	"fmt"
+	"context"
 	"log"
 	"os"
 	"strings"
@@ -40,9 +40,8 @@ const (
 
 var channelTestRunner testlib.ComponentsTestRunner
 var sourcesTestRunner testlib.ComponentsTestRunner
+var brokerTestRunner testlib.ComponentsTestRunner
 var brokerClass string
-var brokerName string
-var brokerNamespace string
 
 func TestMain(m *testing.M) {
 	os.Exit(func() int {
@@ -55,9 +54,13 @@ func TestMain(m *testing.M) {
 			ComponentFeatureMap: testlib.SourceFeatureMap,
 			ComponentsToTest:    test.EventingFlags.Sources,
 		}
+		brokerTestRunner = testlib.ComponentsTestRunner{
+			ComponentFeatureMap: testlib.BrokerFeatureMap,
+			ComponentsToTest:    test.EventingFlags.Brokers,
+			ComponentName:       test.EventingFlags.BrokerName,
+			ComponentNamespace:  test.EventingFlags.BrokerNamespace,
+		}
 		brokerClass = test.EventingFlags.BrokerClass
-		brokerName = test.EventingFlags.BrokerName
-		brokerNamespace = test.EventingFlags.BrokerNamespace
 
 		addSourcesInitializers()
 		// Any tests may SetupZipkinTracing, it will only actually be done once. This should be the ONLY
@@ -71,19 +74,20 @@ func TestMain(m *testing.M) {
 }
 
 func addSourcesInitializers() {
-	apiSrcName := strings.ToLower(fmt.Sprintf("%s",
-		testlib.ApiServerSourceTypeMeta.Kind))
-	pingSrcName := strings.ToLower(fmt.Sprintf("%s",
-		testlib.PingSourceTypeMeta.Kind))
+
+	ctx := context.Background()
+
+	apiSrcName := strings.ToLower(testlib.ApiServerSourceTypeMeta.Kind)
+	pingSrcName := strings.ToLower(testlib.PingSourceTypeMeta.Kind)
 	sourcesTestRunner.AddComponentSetupClientOption(
 		testlib.ApiServerSourceTypeMeta,
-		setupclientoptions.ApiServerSourceV1B1ClientSetupOption(apiSrcName,
-			"Reference",
+		setupclientoptions.ApiServerSourceV1B1ClientSetupOption(
+			ctx, apiSrcName, "Reference",
 			recordEventsAPIPodName, roleName, serviceAccountName),
 	)
 	sourcesTestRunner.AddComponentSetupClientOption(
 		testlib.PingSourceTypeMeta,
-		setupclientoptions.PingSourceV1A2ClientSetupOption(pingSrcName,
-			recordEventsPingPodName),
+		setupclientoptions.PingSourceV1B1ClientSetupOption(
+			ctx, pingSrcName, recordEventsPingPodName),
 	)
 }

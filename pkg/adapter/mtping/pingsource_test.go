@@ -18,20 +18,15 @@ package mtping
 
 import (
 	"context"
-	"sync"
 	"testing"
 
-	"github.com/robfig/cron/v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	testclient "k8s.io/client-go/kubernetes/fake"
 	clientgotesting "k8s.io/client-go/testing"
-	adaptertesting "knative.dev/eventing/pkg/adapter/v2/test"
-	sourcesv1alpha2 "knative.dev/eventing/pkg/apis/sources/v1alpha2"
-	eventingclient "knative.dev/eventing/pkg/client/injection/client"
+	sourcesv1beta1 "knative.dev/eventing/pkg/apis/sources/v1beta1"
 	fakeeventingclient "knative.dev/eventing/pkg/client/injection/client/fake"
-	"knative.dev/eventing/pkg/client/injection/reconciler/sources/v1alpha2/pingsource"
+	"knative.dev/eventing/pkg/client/injection/reconciler/sources/v1beta1/pingsource"
 	. "knative.dev/eventing/pkg/reconciler/testing"
 	"knative.dev/pkg/apis"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
@@ -75,8 +70,8 @@ func TestAllCases(t *testing.T) {
 			Name: "valid schedule",
 			Key:  pingsourceKey,
 			Objects: []runtime.Object{
-				NewPingSourceV1Alpha2(pingSourceName, testNS,
-					WithPingSourceV1A2Spec(sourcesv1alpha2.PingSourceSpec{
+				NewPingSourceV1Beta1(pingSourceName, testNS,
+					WithPingSourceV1B1Spec(sourcesv1beta1.PingSourceSpec{
 						Schedule: testSchedule,
 						JsonData: testData,
 						SourceSpec: duckv1.SourceSpec{
@@ -84,11 +79,10 @@ func TestAllCases(t *testing.T) {
 							CloudEventOverrides: nil,
 						},
 					}),
-					WithInitPingSourceV1A2Conditions,
-					WithValidPingSourceV1A2Schedule,
-					WithPingSourceV1A2Deployed,
-					WithPingSourceV1A2Sink(sinkURI),
-					WithPingSourceV1A2CloudEventAttributes,
+					WithInitPingSourceV1B1Conditions,
+					WithPingSourceV1B1Deployed,
+					WithPingSourceV1B1Sink(sinkURI),
+					WithPingSourceV1B1CloudEventAttributes,
 				),
 			},
 			WantEvents: []string{
@@ -102,8 +96,8 @@ func TestAllCases(t *testing.T) {
 			Name: "valid schedule, with finalizer",
 			Key:  pingsourceKey,
 			Objects: []runtime.Object{
-				NewPingSourceV1Alpha2(pingSourceName, testNS,
-					WithPingSourceV1A2Spec(sourcesv1alpha2.PingSourceSpec{
+				NewPingSourceV1Beta1(pingSourceName, testNS,
+					WithPingSourceV1B1Spec(sourcesv1beta1.PingSourceSpec{
 						Schedule: testSchedule,
 						JsonData: testData,
 						SourceSpec: duckv1.SourceSpec{
@@ -111,12 +105,11 @@ func TestAllCases(t *testing.T) {
 							CloudEventOverrides: nil,
 						},
 					}),
-					WithInitPingSourceV1A2Conditions,
-					WithValidPingSourceV1A2Schedule,
-					WithPingSourceV1A2Deployed,
-					WithPingSourceV1A2Sink(sinkURI),
-					WithPingSourceV1A2CloudEventAttributes,
-					WithPingSourceV1A2Finalizers(defaultFinalizerName),
+					WithInitPingSourceV1B1Conditions,
+					WithPingSourceV1B1Deployed,
+					WithPingSourceV1B1Sink(sinkURI),
+					WithPingSourceV1B1CloudEventAttributes,
+					WithPingSourceV1B1Finalizers(defaultFinalizerName),
 				),
 			},
 			WantErr: false,
@@ -124,8 +117,8 @@ func TestAllCases(t *testing.T) {
 			Name: "valid schedule, deleted with finalizer",
 			Key:  pingsourceKey,
 			Objects: []runtime.Object{
-				NewPingSourceV1Alpha2(pingSourceName, testNS,
-					WithPingSourceV1A2Spec(sourcesv1alpha2.PingSourceSpec{
+				NewPingSourceV1Beta1(pingSourceName, testNS,
+					WithPingSourceV1B1Spec(sourcesv1beta1.PingSourceSpec{
 						Schedule: testSchedule,
 						JsonData: testData,
 						SourceSpec: duckv1.SourceSpec{
@@ -133,13 +126,12 @@ func TestAllCases(t *testing.T) {
 							CloudEventOverrides: nil,
 						},
 					}),
-					WithInitPingSourceV1A2Conditions,
-					WithValidPingSourceV1A2Schedule,
-					WithPingSourceV1A2Deployed,
-					WithPingSourceV1A2Sink(sinkURI),
-					WithPingSourceV1A2CloudEventAttributes,
-					WithPingSourceV1A2Finalizers(defaultFinalizerName),
-					WithPingSourceV1A2Deleted,
+					WithInitPingSourceV1B1Conditions,
+					WithPingSourceV1B1Deployed,
+					WithPingSourceV1B1Sink(sinkURI),
+					WithPingSourceV1B1CloudEventAttributes,
+					WithPingSourceV1B1Finalizers(defaultFinalizerName),
+					WithPingSourceV1B1Deleted,
 				),
 			},
 			WantEvents: []string{
@@ -153,8 +145,8 @@ func TestAllCases(t *testing.T) {
 			Name: "valid schedule, deleted without finalizer",
 			Key:  pingsourceKey,
 			Objects: []runtime.Object{
-				NewPingSourceV1Alpha2(pingSourceName, testNS,
-					WithPingSourceV1A2Spec(sourcesv1alpha2.PingSourceSpec{
+				NewPingSourceV1Beta1(pingSourceName, testNS,
+					WithPingSourceV1B1Spec(sourcesv1beta1.PingSourceSpec{
 						Schedule: testSchedule,
 						JsonData: testData,
 						SourceSpec: duckv1.SourceSpec{
@@ -162,12 +154,11 @@ func TestAllCases(t *testing.T) {
 							CloudEventOverrides: nil,
 						},
 					}),
-					WithInitPingSourceV1A2Conditions,
-					WithValidPingSourceV1A2Schedule,
-					WithPingSourceV1A2Deployed,
-					WithPingSourceV1A2Sink(sinkURI),
-					WithPingSourceV1A2CloudEventAttributes,
-					WithPingSourceV1A2Deleted,
+					WithInitPingSourceV1B1Conditions,
+					WithPingSourceV1B1Deployed,
+					WithPingSourceV1B1Sink(sinkURI),
+					WithPingSourceV1B1CloudEventAttributes,
+					WithPingSourceV1B1Deleted,
 				),
 			},
 			WantErr: false,
@@ -175,19 +166,11 @@ func TestAllCases(t *testing.T) {
 	}
 
 	logger := logtesting.TestLogger(t)
-	ce := adaptertesting.NewTestClient()
 
 	table.Test(t, MakeFactory(func(ctx context.Context, listers *Listers, cmw configmap.Watcher) controller.Reconciler {
-		r := &Reconciler{
-			kubeClient:        testclient.NewSimpleClientset(),
-			eventingClientSet: eventingclient.Get(ctx),
-			pingsourceLister:  listers.GetPingSourceV1alpha2Lister(),
-			cronRunner:        NewCronJobsRunner(ce, testclient.NewSimpleClientset(), logger),
-			entryidMu:         sync.RWMutex{},
-			entryids:          make(map[string]cron.EntryID),
-		}
+		r := &Reconciler{mtadapter: dummyAdapter{}}
 		return pingsource.NewReconciler(ctx, logging.FromContext(ctx),
-			fakeeventingclient.Get(ctx), listers.GetPingSourceV1alpha2Lister(),
+			fakeeventingclient.Get(ctx), listers.GetPingSourceV1beta1Lister(),
 			controller.GetEventRecorder(ctx), r)
 	}, false, logger))
 
@@ -202,7 +185,7 @@ func patchFinalizers(namespace, name string, finalizers string) clientgotesting.
 		ActionImpl: clientgotesting.ActionImpl{
 			Namespace:   namespace,
 			Verb:        "patch",
-			Resource:    schema.GroupVersionResource{Group: "sources.knative.dev", Version: "v1alpha2", Resource: "pingsources"},
+			Resource:    schema.GroupVersionResource{Group: "sources.knative.dev", Version: "v1beta1", Resource: "pingsources"},
 			Subresource: "",
 		},
 		Name:      name,

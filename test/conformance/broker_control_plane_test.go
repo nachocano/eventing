@@ -19,6 +19,7 @@ limitations under the License.
 package conformance
 
 import (
+	"context"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,7 +29,7 @@ import (
 )
 
 func TestBrokerV1Beta1ControlPlane(t *testing.T) {
-	channelTestRunner.RunTests(t, testlib.FeatureBasic, func(t *testing.T, channel metav1.TypeMeta) {
+	brokerTestRunner.RunTests(t, testlib.FeatureBasic, func(t *testing.T, channel metav1.TypeMeta) {
 
 		client := testlib.Setup(t, true, testlib.SetupClientOptionNoop)
 		defer testlib.TearDown(client)
@@ -36,7 +37,7 @@ func TestBrokerV1Beta1ControlPlane(t *testing.T) {
 		helpers.BrokerV1Beta1ControlPlaneTest(
 			t,
 			func(client *testlib.Client, name string) {
-				helpers.BrokerDataPlaneSetupHelper(client, name, brokerNamespace, brokerClass)
+				helpers.BrokerDataPlaneSetupHelper(context.Background(), client, brokerClass, brokerTestRunner)
 			},
 			testlib.SetupClientOptionNoop,
 		)
