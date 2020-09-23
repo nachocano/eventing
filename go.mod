@@ -6,7 +6,7 @@ require (
 	github.com/cloudevents/sdk-go/v2 v2.2.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.2
-	github.com/google/go-cmp v0.5.1
+	github.com/google/go-cmp v0.5.2
 	github.com/google/gofuzz v1.1.0
 	github.com/google/mako v0.0.0-20190821191249-122f8dcef9e3
 	github.com/google/uuid v1.1.1
@@ -29,7 +29,7 @@ require (
 	go.uber.org/atomic v1.6.0
 	go.uber.org/zap v1.15.0
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
-	google.golang.org/grpc v1.31.0
+	google.golang.org/grpc v1.31.1
 	gopkg.in/yaml.v2 v2.3.0
 	gopkg.in/yaml.v3 v3.0.0-20191026110619-0b21df46bc1d // indirect
 	k8s.io/api v0.18.8
@@ -38,8 +38,8 @@ require (
 	k8s.io/apiserver v0.18.8
 	k8s.io/client-go v11.0.1-0.20190805182717-6502b5e7b1b5+incompatible
 	k8s.io/utils v0.0.0-20200603063816-c1c6865ac451
-	knative.dev/pkg v0.0.0-20200915092441-a5e2edc217c0
-	knative.dev/test-infra v0.0.0-20200914203402-489e9e80675b
+	knative.dev/pkg v0.0.0-20200922164940-4bf40ad82aab
+	knative.dev/test-infra v0.0.0-20200921012245-37f1a12adbd3
 	sigs.k8s.io/yaml v1.2.0
 )
 

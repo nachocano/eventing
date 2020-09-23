@@ -83,52 +83,16 @@ handle more than one source instance at a time, either all source instances in
 one namespace or all source instances in the cluster.
 
 In order to support multi-resources per receive adapter, you need to enable the
-ConfigMap watcher feature, as follows:
+Controller watcher feature, as follows:
 
 ```go
 func main() {
   ctx := signals.NewContext()
-  ctx = adapter.WithInjectorEnabled(ctx)
-  ctx = adapter.WithConfigMapWatcherEnabled(ctx)
+  ctx = adapter.WithController(ctx, youradapter.NewController)
   adapter.MainWithContext(ctx, "yourcomponent",
     youradapter.NewEnvConfig,
     youradapter.NewAdapter)
 }
-```
-
-The library automatically creates a watcher on the ConfigMap named
-`config-yourcomponent`. In order to react to any ConfigMap changes, in your
-adapter constructor (`NewAdapter`), you must add a ConfigMap watcher, as
-follows:
-
-```go
-func NewAdapter(ctx context.Context,
-                _ adapter.EnvConfigAccessor,
-                ceClient cloudevents.Client) adapter.Adapter {
-  youradapter := ...
-
-  cmw := adapter.ConfigMapWatcherFromContext(ctx)
-  cmw.Watch("config-yourcomponent", youradapter.updateFromConfigMap)
-
-  return youradapter
-}
-```
-
-The controller associated to the receive adapter generates the ConfigMap. It
-relies on the [persistent store](../../pkg/utils/cache/persisted_store.go)
-utility. Add these lines to your controller to enable it.
-
-```go
-// Create and start persistent store backed by ConfigMaps
-store := eventingcache.NewPersistedStore(
-    "yourcomponent",
-    kubeclient.Get(ctx),
-    system.Namespace(),
-    "config-yourcomponent",
-    yourcomponentInformer.Informer(),
-    yourcomponent.Project)
-
-go store.Run(ctx)
 ```
 
 ## Logging, metrics and tracing
@@ -150,10 +114,9 @@ Kubernetes Service, or as a Knative Service. In both cases you can increase the
 number of receive adapter replicas for increase reliability and reducing
 downtime.
 
-The
-[GithubSource](https://github.com/knative/eventing-contrib/tree/master/github)
-is a good example of a highly-available push-based receive adapter leveraging
-Knative Service.
+The [GithubSource](https://github.com/knative-sandbox/eventing-github) is a good
+example of a highly-available push-based receive adapter leveraging Knative
+Service.
 
 ### Pull model
 
