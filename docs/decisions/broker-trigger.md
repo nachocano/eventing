@@ -24,7 +24,7 @@ abstraction which can optimize the underlying routing layer dynamically.
 - **Event Source**: a helper object that can be used to connect an Event
   Producer to the Knative eventing system by routing events to an Event
   Consumer. E.g. the
-  [GitHub Knative Contrib](https://github.com/knative/eventing-contrib/tree/master/pkg/reconciler/githubsource)
+  [GitHub Knative Contrib](https://github.com/knative-sandbox/eventing-github/tree/master/pkg/reconciler/source)
 - **Receive Adapter**: a data plane entity (Knative Service, Deployment, etc)
   which performs the event routing from outside the Knative cluster to the
   Knative eventing system. Receive Adapters are created by Event Sources to
@@ -146,8 +146,6 @@ type TriggerStatus struct {
 
 ## Backing documents
 
-[2019-02-22 Decision Making -- UX targets](https://docs.google.com/spreadsheets/d/16aOhfRnkaGcQIOR5kiumld-GmrgGBIm9fppvAXx3mgc/edit)
-
 Accepted decisions (2+ votes)
 
 - Have a "Broker" object
@@ -162,5 +160,5 @@ Accepted decisions (2+ votes)
   - Future user stories could change this and motivate a particular
     implementation.
 
-[UX Proposals Comparision](https://docs.google.com/document/d/1fRpM4u4mP2fGUBmScKQ9_e77rKz_7xh_Thwxp8QXhUA/edit#)
+[UX Proposals Comparison](https://docs.google.com/document/d/1fRpM4u4mP2fGUBmScKQ9_e77rKz_7xh_Thwxp8QXhUA/edit#)
 (includes background and discussion)
