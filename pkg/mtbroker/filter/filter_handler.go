@@ -34,7 +34,6 @@ import (
 
 	eventingv1beta1 "knative.dev/eventing/pkg/apis/eventing/v1beta1"
 	eventinglisters "knative.dev/eventing/pkg/client/listers/eventing/v1beta1"
-	"knative.dev/eventing/pkg/health"
 	"knative.dev/eventing/pkg/kncloudevents"
 	broker "knative.dev/eventing/pkg/mtbroker"
 	"knative.dev/eventing/pkg/reconciler/sugar/trigger/path"
@@ -60,9 +59,9 @@ const (
 // Handler parses Cloud Events, determines if they pass a filter, and sends them to a subscriber.
 type Handler struct {
 	// receiver receives incoming HTTP requests
-	receiver *kncloudevents.HttpMessageReceiver
+	receiver *kncloudevents.HTTPMessageReceiver
 	// sender sends requests to downstream services
-	sender *kncloudevents.HttpMessageSender
+	sender *kncloudevents.HTTPMessageSender
 	// reporter reports stats of status code and dispatch time
 	reporter StatsReporter
 
@@ -76,19 +75,18 @@ type FilterResult string
 // NewHandler creates a new Handler and its associated MessageReceiver. The caller is responsible for
 // Start()ing the returned Handler.
 func NewHandler(logger *zap.Logger, triggerLister eventinglisters.TriggerLister, reporter StatsReporter, port int) (*Handler, error) {
-
-	connectionArgs := kncloudevents.ConnectionArgs{
+	kncloudevents.ConfigureConnectionArgs(&kncloudevents.ConnectionArgs{
 		MaxIdleConns:        defaultMaxIdleConnections,
 		MaxIdleConnsPerHost: defaultMaxIdleConnectionsPerHost,
-	}
+	})
 
-	sender, err := kncloudevents.NewHttpMessageSender(&connectionArgs, "")
+	sender, err := kncloudevents.NewHTTPMessageSenderWithTarget("")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create message sender: %w", err)
 	}
 
 	return &Handler{
-		receiver:      kncloudevents.NewHttpMessageReceiver(port),
+		receiver:      kncloudevents.NewHTTPMessageReceiver(port),
 		sender:        sender,
 		reporter:      reporter,
 		triggerLister: triggerLister,
@@ -102,7 +100,7 @@ func NewHandler(logger *zap.Logger, triggerLister eventinglisters.TriggerLister,
 //
 // This method will block until ctx is done.
 func (h *Handler) Start(ctx context.Context) error {
-	return h.receiver.StartListen(ctx, health.WithLivenessCheck(health.WithReadinessCheck(h)))
+	return h.receiver.StartListen(ctx, h)
 }
 
 // 1. validate request
@@ -214,21 +212,14 @@ func (h *Handler) send(ctx context.Context, writer http.ResponseWriter, headers 
 		return
 	}
 
+	h.logger.Debug("Successfully dispatched message", zap.Any("target", target))
+
 	// If there is an event in the response write it to the response
-	statusCode, err := writeResponse(ctx, writer, response, ttl)
+	statusCode, err := h.writeResponse(ctx, writer, response, ttl, target)
 	if err != nil {
 		h.logger.Error("failed to write response", zap.Error(err))
-		// Ok, so writeResponse will return the HttpStatus of the function. That may have
-		// succeeded (200), but it may have returned a malformed event, so if the
-		// function succeeded, convert this to an StatusBadGateway instead to indicate
-		// error. Note that we could just use StatusInternalServerError, but to distinguish
-		// between the two failure cases, we use a different code here.
-		if statusCode == 200 {
-			statusCode = http.StatusBadGateway
-		}
 	}
 	_ = h.reporter.ReportEventCount(reportArgs, statusCode)
-	writer.WriteHeader(statusCode)
 }
 
 func (h *Handler) sendEvent(ctx context.Context, headers http.Header, target string, event *cloudevents.Event, reporterArgs *ReportArgs) (*http.Response, error) {
@@ -242,7 +233,7 @@ func (h *Handler) sendEvent(ctx context.Context, headers http.Header, target str
 	defer message.Finish(nil)
 
 	additionalHeaders := utils.PassThroughHeaders(headers)
-	err = kncloudevents.WriteHttpRequestWithAdditionalHeaders(ctx, message, req, additionalHeaders)
+	err = kncloudevents.WriteHTTPRequestWithAdditionalHeaders(ctx, message, req, additionalHeaders)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write request: %w", err)
 	}
@@ -264,7 +255,8 @@ func (h *Handler) sendEvent(ctx context.Context, headers http.Header, target str
 	return resp, err
 }
 
-func writeResponse(ctx context.Context, writer http.ResponseWriter, resp *http.Response, ttl int32) (int, error) {
+// The return values are the status
+func (h *Handler) writeResponse(ctx context.Context, writer http.ResponseWriter, resp *http.Response, ttl int32, target string) (int, error) {
 	response := cehttp.NewMessageFromHttpResponse(resp)
 	defer response.Finish(nil)
 
@@ -277,19 +269,28 @@ func writeResponse(ctx context.Context, writer http.ResponseWriter, resp *http.R
 		n, _ := response.BodyReader.Read(body)
 		response.BodyReader.Close()
 		if n != 0 {
-			return resp.StatusCode, errors.New("received a non-empty response not recognized as CloudEvent. The response MUST be or empty or a valid CloudEvent")
+			// Note that we could just use StatusInternalServerError, but to distinguish
+			// between the failure cases, we use a different code here.
+			writer.WriteHeader(http.StatusBadGateway)
+			return http.StatusBadGateway, errors.New("received a non-empty response not recognized as CloudEvent. The response MUST be or empty or a valid CloudEvent")
 		}
+		h.logger.Debug("Response doesn't contain a CloudEvent, replying with an empty response", zap.Any("target", target))
+		writer.WriteHeader(resp.StatusCode)
 		return resp.StatusCode, nil
 	}
 
 	event, err := binding.ToEvent(ctx, response)
 	if err != nil {
+		// Like in the above case, we could just use StatusInternalServerError, but to distinguish
+		// between the failure cases, we use a different code here.
+		writer.WriteHeader(http.StatusBadGateway)
 		// Malformed event, reply with err
-		return resp.StatusCode, err
+		return http.StatusBadGateway, err
 	}
 
 	// Reattach the TTL (with the same value) to the response event before sending it to the Broker.
 	if err := broker.SetTTL(event.Context, ttl); err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
 		return http.StatusInternalServerError, fmt.Errorf("failed to reset TTL: %w", err)
 	}
 
@@ -299,6 +300,8 @@ func writeResponse(ctx context.Context, writer http.ResponseWriter, resp *http.R
 	if err := cehttp.WriteResponseWriter(ctx, eventResponse, resp.StatusCode, writer); err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed to write response event: %w", err)
 	}
+
+	h.logger.Debug("Replied with a CloudEvent response", zap.Any("target", target))
 
 	return resp.StatusCode, nil
 }

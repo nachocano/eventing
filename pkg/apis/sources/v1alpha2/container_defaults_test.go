@@ -63,7 +63,7 @@ func TestContainerSourceDefaults(t *testing.T) {
 				},
 			},
 		},
-		"one with ontainer name one without": {
+		"one with container name one without": {
 			initial: ContainerSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-name",
@@ -107,7 +107,7 @@ func TestContainerSourceDefaults(t *testing.T) {
 		t.Run(n, func(t *testing.T) {
 			tc.initial.SetDefaults(context.Background())
 			if diff := cmp.Diff(tc.expected, tc.initial); diff != "" {
-				t.Fatalf("Unexpected defaults (-want, +got): %s", diff)
+				t.Fatal("Unexpected defaults (-want, +got):", diff)
 			}
 		})
 	}

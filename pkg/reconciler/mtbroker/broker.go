@@ -44,8 +44,8 @@ import (
 	duckapis "knative.dev/pkg/apis/duck"
 	pkgduckv1 "knative.dev/pkg/apis/duck/v1"
 	"knative.dev/pkg/logging"
+	"knative.dev/pkg/network"
 	pkgreconciler "knative.dev/pkg/reconciler"
-	"knative.dev/pkg/resolver"
 	"knative.dev/pkg/system"
 )
 
@@ -59,13 +59,6 @@ type Reconciler struct {
 	configmapLister    corev1listers.ConfigMapLister
 
 	channelableTracker duck.ListableTracker
-
-	// Dynamic tracker to track KResources. In particular, it tracks the dependency between Triggers and Sources.
-	kresourceTracker duck.ListableTracker
-
-	// Dynamic tracker to track AddressableTypes. In particular, it tracks Trigger subscribers.
-	addressableTracker duck.ListableTracker
-	uriResolver        *resolver.URIResolver
 
 	// If specified, only reconcile brokers with these labels
 	brokerClass string
@@ -152,7 +145,7 @@ func (r *Reconciler) ReconcileKind(ctx context.Context, b *eventingv1.Broker) pk
 	// so we can route there appropriately.
 	b.Status.SetAddress(&apis.URL{
 		Scheme: "http",
-		Host:   names.ServiceHostName("broker-ingress", system.Namespace()),
+		Host:   network.GetServiceHostname("broker-ingress", system.Namespace()),
 		Path:   fmt.Sprintf("/%s/%s", b.Namespace, b.Name),
 	})
 

@@ -30,6 +30,7 @@ func TestMakePingAdapter(t *testing.T) {
 		MetricsConfig:   "metrics",
 		LoggingConfig:   "logging",
 		NoShutdownAfter: 40,
+		SinkTimeout:     48,
 	}
 
 	want := []corev1.EnvVar{{
@@ -51,11 +52,14 @@ func TestMakePingAdapter(t *testing.T) {
 	}, {
 		Name:  "K_NO_SHUTDOWN_AFTER",
 		Value: "40",
+	}, {
+		Name:  "K_SINK_TIMEOUT",
+		Value: "48",
 	}}
 
 	got := MakeReceiveAdapterEnvVar(args)
 
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("unexpected condition (-want, +got) = %v", diff)
+		t.Error("unexpected condition (-want, +got) =", diff)
 	}
 }

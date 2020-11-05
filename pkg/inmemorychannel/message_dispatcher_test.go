@@ -35,23 +35,21 @@ import (
 	"go.uber.org/zap"
 	"knative.dev/pkg/apis"
 
+	"knative.dev/pkg/tracing"
+	tracingconfig "knative.dev/pkg/tracing/config"
+
 	"knative.dev/eventing/pkg/channel"
 	"knative.dev/eventing/pkg/channel/fanout"
 	"knative.dev/eventing/pkg/channel/multichannelfanout"
-	"knative.dev/eventing/pkg/channel/swappable"
 	"knative.dev/eventing/pkg/kncloudevents"
-	"knative.dev/eventing/pkg/tracing"
 
 	logtesting "knative.dev/pkg/logging/testing"
 )
 
 func TestNewMessageDispatcher(t *testing.T) {
 	logger := logtesting.TestLogger(t).Desugar()
-	sh, err := swappable.NewEmptyMessageHandler(context.TODO(), logger, channel.NewMessageDispatcher(logger))
-
-	if err != nil {
-		t.Fatalf("Failed to create handler")
-	}
+	reporter := channel.NewStatsReporter("testcontainer", "testpod")
+	sh := multichannelfanout.NewMessageHandler(context.TODO(), logger, channel.NewMessageDispatcher(logger), reporter)
 
 	args := &InMemoryMessageDispatcherArgs{
 		Port:         8080,
@@ -71,10 +69,8 @@ func TestNewMessageDispatcher(t *testing.T) {
 // This test emulates a real dispatcher usage
 func TestDispatcher_close(t *testing.T) {
 	logger := logtesting.TestLogger(t).Desugar()
-	sh, err := swappable.NewEmptyMessageHandler(context.TODO(), logger, channel.NewMessageDispatcher(logger))
-	if err != nil {
-		t.Fatal(err)
-	}
+	reporter := channel.NewStatsReporter("testcontainer", "testpod")
+	sh := multichannelfanout.NewMessageHandler(context.TODO(), logger, channel.NewMessageDispatcher(logger), reporter)
 
 	port, err := freePort()
 	if err != nil {
@@ -108,44 +104,23 @@ func TestDispatcher_close(t *testing.T) {
 // This test emulates a real dispatcher usage
 func TestDispatcher_dispatch(t *testing.T) {
 	logger, err := zap.NewDevelopment(zap.AddStacktrace(zap.WarnLevel))
+	reporter := channel.NewStatsReporter("testcontainer", "testpod")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// tracing publishing is configured to let the code pass in all "critical" branches
-	tracing.SetupStaticPublishing(logger.Sugar(), "localhost", tracing.AlwaysSample)
-
-	sh, err := swappable.NewEmptyMessageHandler(context.TODO(), logger, channel.NewMessageDispatcher(logger))
-	if err != nil {
-		t.Fatal(err)
-	}
+	tracing.SetupStaticPublishing(logger.Sugar(), "localhost", &tracingconfig.Config{
+		Backend:        tracingconfig.Zipkin,
+		Debug:          true,
+		SampleRate:     1.0,
+		ZipkinEndpoint: "http://zipkin.zipkin.svc.cluster.local:9411/api/v2/spans",
+	})
 
 	port, err := freePort()
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	logger.Info("Starting dispatcher", zap.Int("port", port))
-
-	dispatcherArgs := &InMemoryMessageDispatcherArgs{
-		Port:         port,
-		ReadTimeout:  1 * time.Minute,
-		WriteTimeout: 1 * time.Minute,
-		Handler:      sh,
-		Logger:       logger,
-	}
-
-	dispatcher := NewMessageDispatcher(dispatcherArgs)
-
-	serverCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Start the dispatcher
-	go func() {
-		if err := dispatcher.Start(serverCtx); err != nil {
-			t.Error(err)
-		}
-	}()
 
 	// We need a channelaproxy and channelbproxy for handling correctly the Host header
 	channelAProxy := httptest.NewServer(createReverseProxy(t, "channela.svc", port))
@@ -169,7 +144,7 @@ func TestDispatcher_dispatch(t *testing.T) {
 		if err != nil {
 			logger.Fatal("Error in transformation handler", zap.Error(err))
 			transformationsCh <- err
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 		transformationsCh <- nil
 	}))
@@ -185,7 +160,7 @@ func TestDispatcher_dispatch(t *testing.T) {
 			err := fmt.Errorf("expecting ce-transformed: true, found %s", transformed)
 			logger.Fatal("Error in receiver", zap.Error(err))
 			receiverCh <- err
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 		receiverCh <- nil
 	}))
@@ -195,7 +170,7 @@ func TestDispatcher_dispatch(t *testing.T) {
 	transformationsFailureWg.Add(1)
 	transformationsFailureServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer transformationsFailureWg.Done()
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer transformationsFailureServer.Close()
 
@@ -205,8 +180,8 @@ func TestDispatcher_dispatch(t *testing.T) {
 		defer deadLetterWg.Done()
 		transformed := r.Header.Get("ce-transformed")
 		if transformed != "" {
-			w.WriteHeader(500)
-			t.Fatalf("Not expecting ce-transformed, found %s", transformed)
+			w.WriteHeader(http.StatusInternalServerError)
+			t.Fatal("Not expecting ce-transformed, found", transformed)
 		}
 	}))
 	defer deadLetterServer.Close()
@@ -253,13 +228,35 @@ func TestDispatcher_dispatch(t *testing.T) {
 		},
 	}
 
-	err = sh.UpdateConfig(context.TODO(), channel.EventDispatcherConfig{}, &config)
+	sh, err := multichannelfanout.NewMessageHandlerWithConfig(context.TODO(), logger, channel.NewMessageDispatcher(logger), config, reporter)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	logger.Info("Starting dispatcher", zap.Int("port", port))
+
+	dispatcherArgs := &InMemoryMessageDispatcherArgs{
+		Port:         port,
+		ReadTimeout:  1 * time.Minute,
+		WriteTimeout: 1 * time.Minute,
+		Handler:      sh,
+		Logger:       logger,
+	}
+
+	dispatcher := NewMessageDispatcher(dispatcherArgs)
+
+	serverCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start the dispatcher
+	go func() {
+		if err := dispatcher.Start(serverCtx); err != nil {
+			t.Error(err)
+		}
+	}()
+
 	// Ok now everything should be ready to send the event
-	httpsender, err := kncloudevents.NewHttpMessageSender(nil, channelAProxy.URL)
+	httpsender, err := kncloudevents.NewHTTPMessageSenderWithTarget(channelAProxy.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,8 +274,8 @@ func TestDispatcher_dispatch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if res.StatusCode != 202 {
-		t.Fatalf("Expected 202, Have %d", res.StatusCode)
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatal("Expected 202, Have", res.StatusCode)
 	}
 
 	transformationsFailureWg.Wait()
@@ -296,7 +293,7 @@ func TestDispatcher_dispatch(t *testing.T) {
 
 func createReverseProxy(t *testing.T, host string, port int) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
-		target := mustParseUrl(t, fmt.Sprintf("http://localhost:%d", port))
+		target := mustParseUrl(t, fmt.Sprint("http://localhost:", port))
 		req.URL.Scheme = target.Scheme
 		req.URL.Host = target.Host
 		req.URL.Path = target.Path

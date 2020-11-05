@@ -20,11 +20,15 @@ import (
 	"os"
 	"testing"
 
+	"k8s.io/utils/pointer"
+
 	"github.com/google/go-cmp/cmp"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"knative.dev/pkg/logging"
+	"knative.dev/pkg/metrics"
 	"knative.dev/pkg/system"
 )
 
@@ -76,10 +80,10 @@ func TestNewDispatcher(t *testing.T) {
 								Value: "knative.dev/inmemorychannel-dispatcher",
 							}, {
 								Name:  "CONFIG_OBSERVABILITY_NAME",
-								Value: "config-observability",
+								Value: metrics.ConfigMapName(),
 							}, {
 								Name:  "CONFIG_LOGGING_NAME",
-								Value: "config-logging",
+								Value: logging.ConfigMapName(),
 							}, {
 								Name: "NAMESPACE",
 								ValueFrom: &corev1.EnvVarSource{
@@ -102,6 +106,11 @@ func TestNewDispatcher(t *testing.T) {
 								Name:          "metrics",
 								ContainerPort: 9090,
 							}},
+							SecurityContext: &corev1.SecurityContext{
+								RunAsUser:    pointer.Int64Ptr(1000),
+								RunAsGroup:   pointer.Int64Ptr(1000),
+								RunAsNonRoot: pointer.BoolPtr(true),
+							},
 						},
 					},
 				},
@@ -112,6 +121,6 @@ func TestNewDispatcher(t *testing.T) {
 	got := MakeDispatcher(args)
 
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("unexpected condition (-want, +got) = %v", diff)
+		t.Error("unexpected condition (-want, +got) =", diff)
 	}
 }

@@ -17,6 +17,10 @@ limitations under the License.
 package sugar
 
 import (
+	"context"
+	"os"
+	"reflect"
+	"runtime"
 	"testing"
 )
 
@@ -38,18 +42,6 @@ func TestOnByDefault(t *testing.T) {
 			},
 			want: true,
 		},
-		"deprecated, enabled": {
-			given: map[string]string{
-				DeprecatedInjectionLabelKey: InjectionEnabledLabelValue,
-			},
-			want: true,
-		},
-		"deprecated, disabled": {
-			given: map[string]string{
-				DeprecatedInjectionLabelKey: InjectionDisabledLabelValue,
-			},
-			want: false,
-		},
 		"labeled, enabled": {
 			given: map[string]string{
 				InjectionLabelKey: InjectionEnabledLabelValue,
@@ -59,20 +51,6 @@ func TestOnByDefault(t *testing.T) {
 		"labeled, disabled": {
 			given: map[string]string{
 				InjectionLabelKey: InjectionDisabledLabelValue,
-			},
-			want: false,
-		},
-		"double labeled, fqn wins, enabled": {
-			given: map[string]string{
-				DeprecatedInjectionLabelKey: InjectionDisabledLabelValue,
-				InjectionLabelKey:           InjectionEnabledLabelValue,
-			},
-			want: true,
-		},
-		"double labeled, fqn wins, disabled": {
-			given: map[string]string{
-				DeprecatedInjectionLabelKey: InjectionEnabledLabelValue,
-				InjectionLabelKey:           InjectionDisabledLabelValue,
 			},
 			want: false,
 		},
@@ -105,18 +83,6 @@ func TestOffByDefault(t *testing.T) {
 			},
 			want: false,
 		},
-		"deprecated, enabled": {
-			given: map[string]string{
-				DeprecatedInjectionLabelKey: InjectionEnabledLabelValue,
-			},
-			want: true,
-		},
-		"deprecated, disabled": {
-			given: map[string]string{
-				DeprecatedInjectionLabelKey: InjectionDisabledLabelValue,
-			},
-			want: false,
-		},
 		"labeled, enabled": {
 			given: map[string]string{
 				InjectionLabelKey: InjectionEnabledLabelValue,
@@ -129,20 +95,6 @@ func TestOffByDefault(t *testing.T) {
 			},
 			want: false,
 		},
-		"double labeled, fqn wins, enabled": {
-			given: map[string]string{
-				DeprecatedInjectionLabelKey: InjectionDisabledLabelValue,
-				InjectionLabelKey:           InjectionEnabledLabelValue,
-			},
-			want: true,
-		},
-		"double labeled, fqn wins, disabled": {
-			given: map[string]string{
-				DeprecatedInjectionLabelKey: InjectionEnabledLabelValue,
-				InjectionLabelKey:           InjectionDisabledLabelValue,
-			},
-			want: false,
-		},
 	}
 	for n, tc := range testCases {
 		t.Run(n, func(t *testing.T) {
@@ -152,4 +104,32 @@ func TestOffByDefault(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLabelFilterFnOrDieInjectionOn(t *testing.T) {
+	ctx := context.Background()
+	os.Setenv("BROKER_INJECTION_DEFAULT", "true")
+	want := OnByDefault
+	if got := LabelFilterFnOrDie(ctx); !reflect.DeepEqual(reflect.ValueOf(got).Pointer(), reflect.ValueOf(want).Pointer()) {
+		t.Errorf("LabelFilterFnOrDie() = %v, want %v", getFunctionName(got), getFunctionName(want))
+	}
+	os.Unsetenv("BROKER_INJECTION_DEFAULT")
+
+}
+
+func TestLabelFilterFnOrDieInjectionOff(t *testing.T) {
+	ctx := context.Background()
+	want := OffByDefault
+	if got := LabelFilterFnOrDie(ctx); !reflect.DeepEqual(reflect.ValueOf(got).Pointer(), reflect.ValueOf(want).Pointer()) {
+		t.Errorf("LabelFilterFnOrDie() = %v, want %v", getFunctionName(got), getFunctionName(want))
+	}
+	os.Setenv("BROKER_INJECTION_DEFAULT", "false")
+	if got := LabelFilterFnOrDie(ctx); !reflect.DeepEqual(reflect.ValueOf(got).Pointer(), reflect.ValueOf(want).Pointer()) {
+		t.Errorf("LabelFilterFnOrDie() = %v, want %v", getFunctionName(got), getFunctionName(want))
+	}
+	os.Unsetenv("BROKER_INJECTION_DEFAULT")
+
+}
+func getFunctionName(i interface{}) string {
+	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }

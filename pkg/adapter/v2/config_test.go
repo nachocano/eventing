@@ -35,6 +35,7 @@ func TestEnvConfig(t *testing.T) {
 	os.Setenv("K_LOGGING_CONFIG", "logging")
 	os.Setenv("K_TRACING_CONFIG", "tracing")
 	os.Setenv("K_LEADER_ELECTION_CONFIG", "leaderelection")
+	os.Setenv("K_SINK_TIMEOUT", "999")
 	os.Setenv("MODE", "mymode") // note: custom to this test impl
 
 	defer func() {
@@ -45,24 +46,49 @@ func TestEnvConfig(t *testing.T) {
 		os.Unsetenv("K_TRACING_CONFIG")
 		os.Unsetenv("K_LEADER_ELECTION_CONFIG")
 		os.Unsetenv("MODE")
+		os.Unsetenv("K_SINK_TIMEOUT")
 	}()
 
 	var env myEnvConfig
 	err := envconfig.Process("", &env)
 	if err != nil {
-		t.Errorf("Expected no error: %v", err)
+		t.Error("Expected no error:", err)
 	}
 
 	if env.Mode != "mymode" {
-		t.Errorf("Expected mode mymode, got: %s", env.Mode)
+		t.Error("Expected mode mymode, got:", env.Mode)
 	}
 
 	if env.Sink != "http://sink" {
-		t.Errorf("Expected sinkURI http://sink, got: %s", env.Sink)
+		t.Error("Expected sinkURI http://sink, got:", env.Sink)
 	}
 
 	if env.LeaderElectionConfigJson != "leaderelection" {
-		t.Errorf("Expected LeaderElectionConfigJson leaderelection, got: %s", env.LeaderElectionConfigJson)
+		t.Error("Expected LeaderElectionConfigJson leaderelection, got:", env.LeaderElectionConfigJson)
 	}
 
+	if sinkTimeout := GetSinkTimeout(nil); sinkTimeout != 999 {
+		t.Error("Expected GetSinkTimeout to be 999, got:", sinkTimeout)
+	}
+
+	if env.EnvSinkTimeout != "999" {
+		t.Error("Expected env.EnvSinkTimeout to be 999, got:", env.EnvSinkTimeout)
+	}
+}
+
+func TestEmptySinkTimeout(t *testing.T) {
+	os.Setenv("K_SINK_TIMEOUT", "")
+	defer func() {
+		os.Unsetenv("K_SINK_TIMEOUT")
+	}()
+
+	var env myEnvConfig
+	err := envconfig.Process("", &env)
+	if err != nil {
+		t.Error("Expected no error:", err)
+	}
+
+	if env.GetSinktimeout() != -1 {
+		t.Error("Expected env.EnvSinkTimeout to be -1, got:", env.GetSinktimeout())
+	}
 }

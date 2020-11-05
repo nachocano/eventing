@@ -24,8 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"knative.dev/eventing/pkg/kncloudevents"
-
 	"github.com/cloudevents/sdk-go/v2/client"
 	"github.com/cloudevents/sdk-go/v2/event"
 	cehttp "github.com/cloudevents/sdk-go/v2/protocol/http"
@@ -33,8 +31,10 @@ import (
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
 	"knative.dev/eventing/pkg/apis/eventing"
 	eventingv1 "knative.dev/eventing/pkg/apis/eventing/v1"
+	"knative.dev/eventing/pkg/kncloudevents"
 	broker "knative.dev/eventing/pkg/mtbroker"
 	reconcilertestingv1 "knative.dev/eventing/pkg/reconciler/testing/v1"
 )
@@ -213,7 +213,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				annotatedBrokers = append(annotatedBrokers, b)
 			}
 			listers := reconcilertestingv1.NewListers(annotatedBrokers)
-			sender, _ := kncloudevents.NewHttpMessageSender(nil, "")
+			sender, _ := kncloudevents.NewHTTPMessageSenderWithTarget("")
 			h := &Handler{
 				Sender:       sender,
 				Defaulter:    tc.defaulter,
@@ -234,7 +234,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 					if v, ok := svc.receivedHeaders[k]; !ok {
 						t.Errorf("expected header %s - %v", k, svc.receivedHeaders)
 					} else if diff := cmp.Diff(expValue, v); diff != "" {
-						t.Errorf("(-want +got) %s", diff)
+						t.Error("(-want +got)", diff)
 					}
 				}
 			}

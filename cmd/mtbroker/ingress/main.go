@@ -27,13 +27,6 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"go.uber.org/zap"
 
-	cmdbroker "knative.dev/eventing/cmd/mtbroker"
-	brokerinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/broker"
-	"knative.dev/eventing/pkg/kncloudevents"
-	broker "knative.dev/eventing/pkg/mtbroker"
-	"knative.dev/eventing/pkg/mtbroker/ingress"
-	"knative.dev/eventing/pkg/reconciler/names"
-	"knative.dev/eventing/pkg/tracing"
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
 	"knative.dev/pkg/configmap"
 	"knative.dev/pkg/controller"
@@ -44,7 +37,15 @@ import (
 	"knative.dev/pkg/metrics"
 	"knative.dev/pkg/signals"
 	"knative.dev/pkg/system"
+	"knative.dev/pkg/tracing"
 	tracingconfig "knative.dev/pkg/tracing/config"
+
+	cmdbroker "knative.dev/eventing/cmd/mtbroker"
+	brokerinformer "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/broker"
+	"knative.dev/eventing/pkg/kncloudevents"
+	broker "knative.dev/eventing/pkg/mtbroker"
+	"knative.dev/eventing/pkg/mtbroker/ingress"
+	"knative.dev/eventing/pkg/reconciler/names"
 )
 
 // TODO make these constants configurable (either as env variables, config map, or part of broker spec).
@@ -72,7 +73,7 @@ func main() {
 	ctx := signals.NewContext()
 
 	// Report stats on Go memory usage every 30 seconds.
-	sharedmain.MemStatsOrDie(ctx)
+	metrics.MemStatsOrDie(ctx)
 
 	cfg := sharedmain.ParseAndGetConfigOrDie()
 
@@ -127,7 +128,8 @@ func main() {
 		MaxIdleConns:        defaultMaxIdleConnections,
 		MaxIdleConnsPerHost: defaultMaxIdleConnectionsPerHost,
 	}
-	sender, err := kncloudevents.NewHttpMessageSender(&connectionArgs, "")
+	kncloudevents.ConfigureConnectionArgs(&connectionArgs)
+	sender, err := kncloudevents.NewHTTPMessageSenderWithTarget("")
 	if err != nil {
 		logger.Fatal("Unable to create message sender", zap.Error(err))
 	}
@@ -135,7 +137,7 @@ func main() {
 	reporter := ingress.NewStatsReporter(env.ContainerName, kmeta.ChildName(env.PodName, uuid.New().String()))
 
 	h := &ingress.Handler{
-		Receiver:     kncloudevents.NewHttpMessageReceiver(env.Port),
+		Receiver:     kncloudevents.NewHTTPMessageReceiver(env.Port),
 		Sender:       sender,
 		Defaulter:    broker.TTLDefaulter(logger, int32(env.MaxTTL)),
 		Reporter:     reporter,

@@ -35,9 +35,9 @@ import (
 
 	duckv1 "knative.dev/pkg/apis/duck/v1"
 
-	sources "knative.dev/eventing/pkg/apis/sources"
+	"knative.dev/eventing/pkg/apis/sources"
 	sourcesv1alpha2 "knative.dev/eventing/pkg/apis/sources/v1alpha2"
-	eventingtesting "knative.dev/eventing/pkg/reconciler/testing"
+	rttestingv1alpha2 "knative.dev/eventing/pkg/reconciler/testing/v1alpha2"
 	testlib "knative.dev/eventing/test/lib"
 	"knative.dev/eventing/test/lib/recordevents"
 	"knative.dev/eventing/test/lib/resources"
@@ -154,10 +154,10 @@ func TestApiServerSourceV1Alpha2(t *testing.T) {
 			spec := tc.spec
 			spec.Sink = duckv1.Destination{Ref: resources.ServiceKRef(recordEventPodName)}
 
-			apiServerSource := eventingtesting.NewApiServerSourceV1Alpha2(
+			apiServerSource := rttestingv1alpha2.NewApiServerSource(
 				fmt.Sprintf("%s-%s", baseApiServerSourceName, tc.name),
 				client.Namespace,
-				eventingtesting.WithApiServerSourceSpecV1A2(spec),
+				rttestingv1alpha2.WithApiServerSourceSpec(spec),
 			)
 
 			client.CreateApiServerSourceV1Alpha2OrFail(apiServerSource)
@@ -215,17 +215,17 @@ func TestApiServerSourceV1Alpha2EventTypes(t *testing.T) {
 
 	// Label namespace so that it creates the default broker.
 	if err := client.LabelNamespace(map[string]string{sugar.InjectionLabelKey: sugar.InjectionEnabledLabelValue}); err != nil {
-		t.Fatalf("Error annotating namespace: %v", err)
+		t.Fatal("Error annotating namespace:", err)
 	}
 
 	// Wait for default broker ready.
 	client.WaitForResourceReadyOrFail(sugarresources.DefaultBrokerName, testlib.BrokerTypeMeta)
 
 	// Create the api server source
-	apiServerSource := eventingtesting.NewApiServerSourceV1Alpha2(
+	apiServerSource := rttestingv1alpha2.NewApiServerSource(
 		sourceName,
 		client.Namespace,
-		eventingtesting.WithApiServerSourceSpecV1A2(
+		rttestingv1alpha2.WithApiServerSourceSpec(
 			sourcesv1alpha2.ApiServerSourceSpec{
 				Resources: []sourcesv1alpha2.APIVersionKindSelector{{
 					APIVersion: "v1",
@@ -244,14 +244,14 @@ func TestApiServerSourceV1Alpha2EventTypes(t *testing.T) {
 	client.WaitForAllTestResourcesReadyOrFail(ctx)
 
 	// Verify that EventTypes were created.
-	eventTypes, err := waitForEventTypes(ctx, client, len(sources.ApiServerSourceEventTypes))
+	eventTypes, err := waitForEventTypes(ctx, client, len(sources.ApiServerSourceEventReferenceModeTypes))
 	if err != nil {
-		t.Fatalf("Waiting for EventTypes: %v", err)
+		t.Fatal("Waiting for EventTypes:", err)
 	}
-	expectedCeTypes := sets.NewString(sources.ApiServerSourceEventTypes...)
+	expectedCeTypes := sets.NewString(sources.ApiServerSourceEventReferenceModeTypes...)
 	for _, et := range eventTypes {
 		if !expectedCeTypes.Has(et.Spec.Type) {
-			t.Fatalf("Invalid spec.type for ApiServerSource EventType, expected one of: %v, got: %s", sources.ApiServerSourceEventTypes, et.Spec.Type)
+			t.Fatalf("Invalid spec.type for ApiServerSource EventType, expected one of: %v, got: %s", sources.ApiServerSourceEventReferenceModeTypes, et.Spec.Type)
 		}
 	}
 }

@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Copyright 2019 The Knative Authors
+# Copyright 2020 The Knative Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 export PROJECT_NAME="knative-eventing-performance"
 export BENCHMARK_ROOT_PATH="$GOPATH/src/knative.dev/eventing/test/performance/benchmarks"
 
-source vendor/knative.dev/test-infra/scripts/performance-tests.sh
+source vendor/knative.dev/hack/performance-tests.sh
 
 # Vars used in this script
 export TEST_CONFIG_VARIANT="continuous"

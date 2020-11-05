@@ -24,10 +24,6 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"go.uber.org/zap"
 
-	broker "knative.dev/eventing/cmd/mtbroker"
-	"knative.dev/eventing/pkg/mtbroker/filter"
-	"knative.dev/eventing/pkg/reconciler/names"
-	"knative.dev/eventing/pkg/tracing"
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
 	"knative.dev/pkg/configmap"
 	"knative.dev/pkg/controller"
@@ -37,7 +33,12 @@ import (
 	"knative.dev/pkg/metrics"
 	"knative.dev/pkg/signals"
 	"knative.dev/pkg/system"
+	"knative.dev/pkg/tracing"
 	tracingconfig "knative.dev/pkg/tracing/config"
+
+	broker "knative.dev/eventing/cmd/mtbroker"
+	"knative.dev/eventing/pkg/mtbroker/filter"
+	"knative.dev/eventing/pkg/reconciler/names"
 
 	"knative.dev/pkg/injection/sharedmain"
 
@@ -62,7 +63,7 @@ func main() {
 	ctx := signals.NewContext()
 
 	// Report stats on Go memory usage every 30 seconds.
-	sharedmain.MemStatsOrDie(ctx)
+	metrics.MemStatsOrDie(ctx)
 
 	cfg := sharedmain.ParseAndGetConfigOrDie()
 

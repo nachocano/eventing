@@ -2,6 +2,7 @@
 
 /*
 Copyright 2020 The Knative Authors
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -35,7 +36,7 @@ import (
 	"knative.dev/eventing/test/lib/recordevents"
 	"knative.dev/eventing/test/lib/resources"
 
-	eventingtesting "knative.dev/eventing/pkg/reconciler/testing"
+	reconcilertestingv1beta1 "knative.dev/eventing/pkg/reconciler/testing/v1beta1"
 )
 
 func TestContainerSourceV1Beta1(t *testing.T) {
@@ -56,7 +57,7 @@ func TestContainerSourceV1Beta1(t *testing.T) {
 	// create event record pod
 	eventTracker, _ := recordevents.StartEventRecordOrFail(ctx, client, recordEventPodName)
 	// create container source
-	message := fmt.Sprintf("TestContainerSource%s", uuid.NewUUID())
+	message := fmt.Sprintf("msg %s for TestContainerSource", uuid.NewUUID())
 	// args are the arguments passing to the container, msg is used in the heartbeats image
 	args := []string{"--msg=" + message}
 	// envVars are the environment variables of the container
@@ -67,10 +68,10 @@ func TestContainerSourceV1Beta1(t *testing.T) {
 		Name:  "POD_NAMESPACE",
 		Value: client.Namespace,
 	}}
-	containerSource := eventingtesting.NewContainerSourceV1Beta1(
+	containerSource := reconcilertestingv1beta1.NewContainerSource(
 		containerSourceName,
 		client.Namespace,
-		eventingtesting.WithContainerSourceSpecV1B1(sourcesv1beta1.ContainerSourceSpec{
+		reconcilertestingv1beta1.WithContainerSourceSpec(sourcesv1beta1.ContainerSourceSpec{
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: templateName,
@@ -79,7 +80,7 @@ func TestContainerSourceV1Beta1(t *testing.T) {
 					Containers: []corev1.Container{{
 						Name:            imageName,
 						Image:           pkgTest.ImagePath(imageName),
-						ImagePullPolicy: corev1.PullAlways,
+						ImagePullPolicy: corev1.PullIfNotPresent,
 						Args:            args,
 						Env:             envVars,
 					}},

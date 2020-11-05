@@ -34,18 +34,16 @@ import (
 	"knative.dev/eventing/pkg/client/injection/ducks/duck/v1/channelable"
 	"knative.dev/eventing/pkg/client/injection/reconciler/eventing/v1/broker"
 	"knative.dev/eventing/pkg/duck"
-	"knative.dev/eventing/pkg/utils"
 	"knative.dev/pkg/apis"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
 	v1addr "knative.dev/pkg/client/injection/ducks/duck/v1/addressable"
-	"knative.dev/pkg/client/injection/ducks/duck/v1/conditions"
 	v1a1addr "knative.dev/pkg/client/injection/ducks/duck/v1alpha1/addressable"
 	v1b1addr "knative.dev/pkg/client/injection/ducks/duck/v1beta1/addressable"
 	"knative.dev/pkg/configmap"
 	"knative.dev/pkg/controller"
 	fakedynamicclient "knative.dev/pkg/injection/clients/dynamicclient/fake"
 	logtesting "knative.dev/pkg/logging/testing"
-	"knative.dev/pkg/resolver"
+	"knative.dev/pkg/network"
 
 	_ "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/trigger/fake"
 	. "knative.dev/eventing/pkg/reconciler/testing/v1"
@@ -73,7 +71,7 @@ kind: "InMemoryChannel"
 var (
 	testKey = fmt.Sprintf("%s/%s", testNS, brokerName)
 
-	triggerChannelHostname = fmt.Sprintf("foo.bar.svc.%s", utils.GetClusterDomainName())
+	triggerChannelHostname = network.GetServiceHostname("foo", "bar")
 	triggerChannelURL      = fmt.Sprintf("http://%s", triggerChannelHostname)
 
 	filterServiceName  = "broker-filter"
@@ -81,7 +79,7 @@ var (
 
 	brokerAddress = &apis.URL{
 		Scheme: "http",
-		Host:   fmt.Sprintf("%s.%s.svc.%s", ingressServiceName, systemNS, utils.GetClusterDomainName()),
+		Host:   network.GetServiceHostname(ingressServiceName, systemNS),
 		Path:   fmt.Sprintf("/%s/%s", testNS, brokerName),
 	}
 )
@@ -379,17 +377,13 @@ func TestReconcile(t *testing.T) {
 		ctx = v1a1addr.WithDuck(ctx)
 		ctx = v1b1addr.WithDuck(ctx)
 		ctx = v1addr.WithDuck(ctx)
-		ctx = conditions.WithDuck(ctx)
 		r := &Reconciler{
 			eventingClientSet:  fakeeventingclient.Get(ctx),
 			dynamicClientSet:   fakedynamicclient.Get(ctx),
 			subscriptionLister: listers.GetSubscriptionLister(),
 			endpointsLister:    listers.GetEndpointsLister(),
 			configmapLister:    listers.GetConfigMapLister(),
-			kresourceTracker:   duck.NewListableTracker(ctx, conditions.Get, func(types.NamespacedName) {}, 0),
 			channelableTracker: duck.NewListableTracker(ctx, channelable.Get, func(types.NamespacedName) {}, 0),
-			addressableTracker: duck.NewListableTracker(ctx, v1a1addr.Get, func(types.NamespacedName) {}, 0),
-			uriResolver:        resolver.NewURIResolver(ctx, func(types.NamespacedName) {}),
 		}
 		return broker.NewReconciler(ctx, logger,
 			fakeeventingclient.Get(ctx), listers.GetBrokerLister(),

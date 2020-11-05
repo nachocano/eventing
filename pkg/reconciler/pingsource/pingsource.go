@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/pointer"
+	"knative.dev/eventing/pkg/adapter/v2"
 
 	appsv1listers "k8s.io/client-go/listers/apps/v1"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
@@ -141,12 +142,12 @@ func (r *Reconciler) ReconcileKind(ctx context.Context, source *v1beta1.PingSour
 }
 
 func (r *Reconciler) reconcileReceiveAdapter(ctx context.Context, source *v1beta1.PingSource) (*appsv1.Deployment, error) {
-	loggingConfig, err := logging.LoggingConfigToJson(r.configs.LoggingConfig())
+	loggingConfig, err := logging.ConfigToJSON(r.configs.LoggingConfig())
 	if err != nil {
 		logging.FromContext(ctx).Errorw("error while converting logging config to JSON", zap.Any("receiveAdapter", err))
 	}
 
-	metricsConfig, err := metrics.MetricsOptionsToJson(r.configs.MetricsConfig())
+	metricsConfig, err := metrics.OptionsToJSON(r.configs.MetricsConfig())
 	if err != nil {
 		logging.FromContext(ctx).Errorw("error while converting metrics config to JSON", zap.Any("receiveAdapter", err))
 	}
@@ -156,6 +157,7 @@ func (r *Reconciler) reconcileReceiveAdapter(ctx context.Context, source *v1beta
 		MetricsConfig:   metricsConfig,
 		LeConfig:        r.leConfig,
 		NoShutdownAfter: mtping.GetNoShutDownAfterValue(),
+		SinkTimeout:     adapter.GetSinkTimeout(logging.FromContext(ctx)),
 	}
 	expected := resources.MakeReceiveAdapterEnvVar(args)
 

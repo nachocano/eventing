@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/markbates/inflect"
+	"go.uber.org/zap"
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -164,7 +165,7 @@ func (ac *Reconciler) Reconcile(ctx context.Context, key string) error {
 	// Look up the webhook secret, and fetch the CA cert bundle.
 	secret, err := ac.SecretLister.Secrets(system.Namespace()).Get(ac.SecretName)
 	if err != nil {
-		logging.FromContext(ctx).Errorf("Error fetching secret: %v", err)
+		logging.FromContext(ctx).Errorw("Error fetching secret", zap.Error(err))
 		return err
 	}
 	caCert, ok := secret.Data[certresources.CACert]
@@ -186,7 +187,7 @@ func (ac *Reconciler) Admit(ctx context.Context, request *admissionv1.AdmissionR
 	switch request.Operation {
 	case admissionv1.Create, admissionv1.Update:
 	default:
-		logging.FromContext(ctx).Infof("Unhandled webhook operation, letting it through %v", request.Operation)
+		logging.FromContext(ctx).Info("Unhandled webhook operation, letting it through ", request.Operation)
 		return &admissionv1.AdmissionResponse{Allowed: true}
 	}
 

@@ -37,7 +37,7 @@ import (
 	"knative.dev/eventing/test/lib/recordevents"
 	"knative.dev/eventing/test/lib/resources"
 
-	eventingtesting "knative.dev/eventing/pkg/reconciler/testing"
+	rttestingv1alpha2 "knative.dev/eventing/pkg/reconciler/testing/v1alpha2"
 )
 
 func TestSinkBindingV1Alpha2Deployment(t *testing.T) {
@@ -60,23 +60,23 @@ func TestSinkBindingV1Alpha2Deployment(t *testing.T) {
 	extensionSecret := string(uuid.NewUUID())
 
 	// create sink binding
-	sinkBinding := eventingtesting.NewSinkBindingV1Alpha2(
+	sinkBinding := rttestingv1alpha2.NewSinkBinding(
 		sinkBindingName,
 		client.Namespace,
-		eventingtesting.WithSinkV1A2(duckv1.Destination{Ref: resources.KnativeRefForService(recordEventPodName, client.Namespace)}),
-		eventingtesting.WithSubjectV1A2(tracker.Reference{
+		rttestingv1alpha2.WithSink(duckv1.Destination{Ref: resources.KnativeRefForService(recordEventPodName, client.Namespace)}),
+		rttestingv1alpha2.WithSubject(tracker.Reference{
 			APIVersion: "apps/v1",
 			Kind:       "Deployment",
 			Namespace:  client.Namespace,
 			Name:       deploymentName,
 		}),
-		eventingtesting.WithCloudEventOverridesV1A2(duckv1.CloudEventOverrides{Extensions: map[string]string{
+		rttestingv1alpha2.WithCloudEventOverrides(duckv1.CloudEventOverrides{Extensions: map[string]string{
 			"sinkbinding": extensionSecret,
 		}}),
 	)
 	client.CreateSinkBindingV1Alpha2OrFail(sinkBinding)
 
-	message := fmt.Sprintf("TestSinkBindingDeployment%s", uuid.NewUUID())
+	message := fmt.Sprintf("msg %s TestSinkBindingDeployment", uuid.NewUUID())
 	client.CreateDeploymentOrFail(&appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: client.Namespace,
@@ -98,7 +98,7 @@ func TestSinkBindingV1Alpha2Deployment(t *testing.T) {
 					Containers: []corev1.Container{{
 						Name:            imageName,
 						Image:           pkgTest.ImagePath(imageName),
-						ImagePullPolicy: corev1.PullAlways,
+						ImagePullPolicy: corev1.PullIfNotPresent,
 						Args:            []string{"--msg=" + message},
 						Env: []corev1.EnvVar{{
 							Name:  "POD_NAME",
@@ -142,11 +142,11 @@ func TestSinkBindingV1Alpha2CronJob(t *testing.T) {
 	// create event logger pod and service
 	eventTracker, _ := recordevents.StartEventRecordOrFail(ctx, client, recordEventPodName)
 	// create sink binding
-	sinkBinding := eventingtesting.NewSinkBindingV1Alpha2(
+	sinkBinding := rttestingv1alpha2.NewSinkBinding(
 		sinkBindingName,
 		client.Namespace,
-		eventingtesting.WithSinkV1A2(duckv1.Destination{Ref: resources.KnativeRefForService(recordEventPodName, client.Namespace)}),
-		eventingtesting.WithSubjectV1A2(tracker.Reference{
+		rttestingv1alpha2.WithSink(duckv1.Destination{Ref: resources.KnativeRefForService(recordEventPodName, client.Namespace)}),
+		rttestingv1alpha2.WithSubject(tracker.Reference{
 			APIVersion: "batch/v1",
 			Kind:       "Job",
 			Namespace:  client.Namespace,
@@ -159,7 +159,7 @@ func TestSinkBindingV1Alpha2CronJob(t *testing.T) {
 	)
 	client.CreateSinkBindingV1Alpha2OrFail(sinkBinding)
 
-	message := fmt.Sprintf("TestSinkBindingCronJob%s", uuid.NewUUID())
+	message := fmt.Sprintf("msg %s TestSinkBindingCronJob", uuid.NewUUID())
 	client.CreateCronJobOrFail(&batchv1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: client.Namespace,
@@ -180,7 +180,7 @@ func TestSinkBindingV1Alpha2CronJob(t *testing.T) {
 							Containers: []corev1.Container{{
 								Name:            imageName,
 								Image:           pkgTest.ImagePath(imageName),
-								ImagePullPolicy: corev1.PullAlways,
+								ImagePullPolicy: corev1.PullIfNotPresent,
 								Args:            []string{"--msg=" + message},
 								Env: []corev1.EnvVar{{
 									Name:  "ONE_SHOT",

@@ -35,7 +35,7 @@ const (
 	readyMessage = "prober ready"
 )
 
-func TestContinuousEventsPropagationWithProber(t *testing.T) {
+func TestEventsPropagationWithProber(t *testing.T) {
 	// We run the prober as a golang test because it fits in nicely with
 	// the rest of our integration tests, and AssertProberDefault needs
 	// a *testing.T. Unfortunately, "go test" intercepts signals, so we
@@ -44,16 +44,13 @@ func TestContinuousEventsPropagationWithProber(t *testing.T) {
 	// to signal that we should stop probing.
 	ensureTempFilesAreCleaned()
 	if err := syscall.Mkfifo(test.EventingFlags.PipeFile, 0666); err != nil {
-		t.Fatalf("Failed to create pipe: %v", err)
+		t.Fatal("Failed to create pipe:", err)
 	}
 	defer ensureTempFilesAreCleaned()
 	client := setup(t, false)
 	defer tearDown(client)
 
 	config := prober.NewConfig(client.Namespace)
-
-	// FIXME: https://github.com/knative/eventing/issues/2665
-	config.FailOnErrors = false
 
 	// Use zap.SugarLogger instead of t.Logf because we want to see failures
 	// inline with other logs instead of buffered until the end.

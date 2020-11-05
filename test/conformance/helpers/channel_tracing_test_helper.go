@@ -29,6 +29,7 @@ import (
 
 	tracinghelper "knative.dev/eventing/test/conformance/helpers/tracing"
 	testlib "knative.dev/eventing/test/lib"
+	"knative.dev/eventing/test/lib/recordevents"
 	"knative.dev/eventing/test/lib/resources"
 	"knative.dev/eventing/test/lib/sender"
 )
@@ -69,17 +70,19 @@ func setupChannelTracingWithReply(
 	client.CreateChannelOrFail(replyChannelName, channel)
 
 	// Create the 'sink', a LogEvents Pod and a K8s Service that points to it.
-	recordEventsPod := resources.EventRecordPod(recordEventsPodName)
-	client.CreatePodOrFail(recordEventsPod, testlib.WithService(recordEventsPodName))
+	recordEventsPod := recordevents.DeployEventRecordOrFail(ctx, client, recordEventsPodName)
 
 	// Create the subscriber, a Pod that mutates the event.
-	transformerPod := resources.EventTransformationPod(
+	transformerPod := recordevents.DeployEventRecordOrFail(
+		ctx,
+		client,
 		"transformer",
-		"mutated",
-		eventSource,
-		nil,
+		recordevents.ReplyWithTransformedEvent(
+			"mutated",
+			eventSource,
+			"",
+		),
 	)
-	client.CreatePodOrFail(transformerPod, testlib.WithService(transformerPod.Name))
 
 	// Create the Subscription linking the Channel to the mutator.
 	client.CreateSubscriptionOrFail(
@@ -109,7 +112,7 @@ func setupChannelTracingWithReply(
 	event.SetType(testlib.DefaultEventType)
 	body := fmt.Sprintf(`{"msg":"TestChannelTracing %s"}`, eventID)
 	if err := event.SetData(cloudevents.ApplicationJSON, []byte(body)); err != nil {
-		t.Fatalf("Cannot set the payload of the event: %s", err.Error())
+		t.Fatal("Cannot set the payload of the event:", err.Error())
 	}
 
 	// Send the CloudEvent (either with or without tracing inside the SendEvents Pod).
@@ -134,7 +137,7 @@ func setupChannelTracingWithReply(
 		Span: tracinghelper.MatchHTTPSpanNoReply(
 			model.Server,
 			tracinghelper.WithHTTPHostAndPath(
-				fmt.Sprintf("%s-kn-channel.%s.svc.cluster.local", channelName, client.Namespace),
+				fmt.Sprintf("%s-kn-channel.%s.svc", channelName, client.Namespace),
 				"/",
 			),
 		),
@@ -144,7 +147,7 @@ func setupChannelTracingWithReply(
 				Span: tracinghelper.MatchHTTPSpanWithReply(
 					model.Client,
 					tracinghelper.WithHTTPHostAndPath(
-						fmt.Sprintf("%s.%s.svc.cluster.local", transformerPod.Name, client.Namespace),
+						fmt.Sprintf("%s.%s.svc", transformerPod.Name, client.Namespace),
 						"/",
 					),
 				),
@@ -154,7 +157,7 @@ func setupChannelTracingWithReply(
 						Span: tracinghelper.MatchHTTPSpanWithReply(
 							model.Server,
 							tracinghelper.WithHTTPHostAndPath(
-								fmt.Sprintf("%s.%s.svc.cluster.local", transformerPod.Name, client.Namespace),
+								fmt.Sprintf("%s.%s.svc", transformerPod.Name, client.Namespace),
 								"/",
 							),
 							tracinghelper.WithLocalEndpointServiceName(transformerPod.Name),
@@ -167,7 +170,7 @@ func setupChannelTracingWithReply(
 				Span: tracinghelper.MatchHTTPSpanNoReply(
 					model.Client,
 					tracinghelper.WithHTTPHostAndPath(
-						fmt.Sprintf("%s-kn-channel.%s.svc.cluster.local", replyChannelName, client.Namespace),
+						fmt.Sprintf("%s-kn-channel.%s.svc", replyChannelName, client.Namespace),
 						"",
 					),
 				),
@@ -177,7 +180,7 @@ func setupChannelTracingWithReply(
 						Span: tracinghelper.MatchHTTPSpanNoReply(
 							model.Server,
 							tracinghelper.WithHTTPHostAndPath(
-								fmt.Sprintf("%s-kn-channel.%s.svc.cluster.local", replyChannelName, client.Namespace),
+								fmt.Sprintf("%s-kn-channel.%s.svc", replyChannelName, client.Namespace),
 								"/",
 							),
 						),
@@ -187,7 +190,7 @@ func setupChannelTracingWithReply(
 								Span: tracinghelper.MatchHTTPSpanNoReply(
 									model.Client,
 									tracinghelper.WithHTTPHostAndPath(
-										fmt.Sprintf("%s.%s.svc.cluster.local", recordEventsPod.Name, client.Namespace),
+										fmt.Sprintf("%s.%s.svc", recordEventsPod.Name, client.Namespace),
 										"/",
 									),
 								),
@@ -197,7 +200,7 @@ func setupChannelTracingWithReply(
 										Span: tracinghelper.MatchHTTPSpanNoReply(
 											model.Server,
 											tracinghelper.WithHTTPHostAndPath(
-												fmt.Sprintf("%s.%s.svc.cluster.local", recordEventsPod.Name, client.Namespace),
+												fmt.Sprintf("%s.%s.svc", recordEventsPod.Name, client.Namespace),
 												"/",
 											),
 											tracinghelper.WithLocalEndpointServiceName(recordEventsPod.Name),
@@ -218,7 +221,7 @@ func setupChannelTracingWithReply(
 			Span: tracinghelper.MatchHTTPSpanNoReply(
 				model.Client,
 				tracinghelper.WithHTTPHostAndPath(
-					fmt.Sprintf("%s-kn-channel.%s.svc.cluster.local", channelName, client.Namespace),
+					fmt.Sprintf("%s-kn-channel.%s.svc", channelName, client.Namespace),
 					"",
 				),
 				tracinghelper.WithLocalEndpointServiceName("sender"),

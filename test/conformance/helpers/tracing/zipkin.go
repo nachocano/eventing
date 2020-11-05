@@ -20,12 +20,13 @@ import (
 	"context"
 	"testing"
 
+	"knative.dev/pkg/system"
+
 	testlib "knative.dev/eventing/test/lib"
-	"knative.dev/eventing/test/lib/resources"
 	"knative.dev/pkg/test/zipkin"
 )
 
 // Setup sets up port forwarding to Zipkin.
 func Setup(t *testing.T, client *testlib.Client) {
-	zipkin.SetupZipkinTracingFromConfigTracingOrFail(context.Background(), t, client.Kube.Kube, resources.SystemNamespace)
+	zipkin.SetupZipkinTracingFromConfigTracingOrFail(context.Background(), t, client.Kube, system.Namespace())
 }

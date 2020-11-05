@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "knative.dev/eventing/pkg/apis/sources/v1"
 	"knative.dev/eventing/pkg/apis/sources/v1alpha2"
 	"knative.dev/eventing/pkg/apis/sources/v1beta1"
 	"knative.dev/pkg/apis"
@@ -46,7 +47,7 @@ func TestSinkBindingConversionBadType(t *testing.T) {
 }
 
 func TestSinkBindingConversionRoundTripUp(t *testing.T) {
-	versions := []apis.Convertible{&v1beta1.SinkBinding{}, &v1alpha2.SinkBinding{}}
+	versions := []apis.Convertible{&v1.SinkBinding{}, &v1beta1.SinkBinding{}, &v1alpha2.SinkBinding{}}
 
 	path := apis.HTTP("")
 	path.Path = "/path"
@@ -160,16 +161,16 @@ func TestSinkBindingConversionRoundTripUp(t *testing.T) {
 			t.Run(test.name, func(t *testing.T) {
 				ver := version
 				if err := test.in.ConvertTo(context.Background(), ver); err != nil {
-					t.Errorf("ConvertTo() = %v", err)
+					t.Error("ConvertTo() =", err)
 				}
 
 				got := &SinkBinding{}
 
 				if err := got.ConvertFrom(context.Background(), ver); err != nil {
-					t.Errorf("ConvertFrom() = %v", err)
+					t.Error("ConvertFrom() =", err)
 				}
 				if diff := cmp.Diff(test.in, got); diff != "" {
-					t.Errorf("roundtrip (-want, +got) = %v", diff)
+					t.Error("roundtrip (-want, +got) =", diff)
 				}
 			})
 		}
@@ -277,16 +278,16 @@ func TestSinkBindingConversionRoundTripDown(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			down := &SinkBinding{}
 			if err := down.ConvertFrom(context.Background(), test.in); err != nil {
-				t.Errorf("ConvertTo() = %v", err)
+				t.Error("ConvertTo() =", err)
 			}
 
 			got := (reflect.New(reflect.TypeOf(test.in).Elem()).Interface()).(apis.Convertible)
 
 			if err := down.ConvertTo(context.Background(), got); err != nil {
-				t.Errorf("ConvertFrom() = %v", err)
+				t.Error("ConvertFrom() =", err)
 			}
 			if diff := cmp.Diff(test.in, got); diff != "" {
-				t.Errorf("roundtrip (-want, +got) = %v", diff)
+				t.Error("roundtrip (-want, +got) =", diff)
 			}
 		})
 	}

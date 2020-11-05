@@ -43,10 +43,9 @@ spec:
                   apiVersion: v1
                   fieldPath: metadata.namespace
 
-            # The values below are being filled by the ping source controller
+            # DO NOT MODIFY: The values below are being filled by the ping source controller
+            # See 500-controller.yaml
             - name: K_METRICS_CONFIG
-              value: ''
-            - name: K_LOGGING_CONFIG
               value: ''
             - name: K_LOGGING_CONFIG
               value: ''
@@ -54,6 +53,8 @@ spec:
               value: ''
             - name: K_NO_SHUTDOWN_AFTER
               value: ''
+            - name: K_SINK_TIMEOUT
+              value: '-1'
             - name: POD_NAME
               valueFrom:
                 fieldRef:

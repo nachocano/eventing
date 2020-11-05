@@ -28,9 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
 
-	"knative.dev/pkg/apis"
-
-	"knative.dev/eventing/pkg/apis/eventing"
 	sourcesv1beta1 "knative.dev/eventing/pkg/apis/sources/v1beta1"
 	sugarresources "knative.dev/eventing/pkg/reconciler/sugar/resources"
 	eventingtesting "knative.dev/eventing/pkg/reconciler/testing"
@@ -60,7 +57,7 @@ func TestTriggerDependencyAnnotation(t *testing.T) {
 
 	// Label namespace so that it creates the default broker.
 	if err := client.LabelNamespace(map[string]string{sugar.InjectionLabelKey: sugar.InjectionEnabledLabelValue}); err != nil {
-		t.Fatalf("Error annotating namespace: %v", err)
+		t.Fatal("Error annotating namespace:", err)
 	}
 	// Wait for default broker ready.
 	client.WaitForResourceReadyOrFail(defaultBrokerName, testlib.BrokerTypeMeta)
@@ -84,17 +81,17 @@ func TestTriggerDependencyAnnotation(t *testing.T) {
 			Schedule: schedule,
 			JsonData: jsonData,
 			SourceSpec: duckv1.SourceSpec{
-				Sink: duckv1.Destination{},
+				Sink: duckv1.Destination{
+					Ref: &duckv1.KReference{
+						Namespace:  client.Namespace,
+						Name:       defaultBrokerName,
+						APIVersion: "eventing.knative.dev/v1",
+						Kind:       "Broker",
+					},
+				},
 			},
 		}),
 	)
-	if brokerClass == eventing.MTChannelBrokerClassValue {
-		pingSource.Spec.SourceSpec.Sink.URI = &apis.URL{
-			Scheme: "http",
-			Host:   fmt.Sprintf("broker-ingress.%s.svc.cluster.local", resources.SystemNamespace),
-			Path:   fmt.Sprintf("/%s/%s", client.Namespace, defaultBrokerName),
-		}
-	}
 
 	client.CreatePingSourceV1Beta1OrFail(pingSource)
 

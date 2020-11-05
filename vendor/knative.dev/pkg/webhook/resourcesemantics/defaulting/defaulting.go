@@ -87,7 +87,7 @@ func (ac *reconciler) Reconcile(ctx context.Context, key string) error {
 	// Look up the webhook secret, and fetch the CA cert bundle.
 	secret, err := ac.secretlister.Secrets(system.Namespace()).Get(ac.secretName)
 	if err != nil {
-		logger.Errorf("Error fetching secret: %v", err)
+		logger.Errorw("Error fetching secret", zap.Error(err))
 		return err
 	}
 	caCert, ok := secret.Data[certresources.CACert]
@@ -114,7 +114,7 @@ func (ac *reconciler) Admit(ctx context.Context, request *admissionv1.AdmissionR
 	switch request.Operation {
 	case admissionv1.Create, admissionv1.Update:
 	default:
-		logger.Infof("Unhandled webhook operation, letting it through %v", request.Operation)
+		logger.Info("Unhandled webhook operation, letting it through ", request.Operation)
 		return &admissionv1.AdmissionResponse{Allowed: true}
 	}
 
@@ -149,7 +149,7 @@ func (ac *reconciler) reconcileMutatingWebhook(ctx context.Context, caCert []byt
 			Rule: admissionregistrationv1.Rule{
 				APIGroups:   []string{gvk.Group},
 				APIVersions: []string{gvk.Version},
-				Resources:   []string{plural + "/*"},
+				Resources:   []string{plural, plural + "/status"},
 			},
 		})
 	}
@@ -228,7 +228,7 @@ func (ac *reconciler) mutate(ctx context.Context, req *admissionv1.AdmissionRequ
 	logger := logging.FromContext(ctx)
 	handler, ok := ac.handlers[gvk]
 	if !ok {
-		logger.Errorf("Unhandled kind: %v", gvk)
+		logger.Error("Unhandled kind: ", gvk)
 		return nil, fmt.Errorf("unhandled kind: %v", gvk)
 	}
 

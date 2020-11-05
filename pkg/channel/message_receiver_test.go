@@ -25,6 +25,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"knative.dev/pkg/network"
+
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
 	"github.com/cloudevents/sdk-go/v2/protocol/http"
@@ -36,9 +38,10 @@ import (
 	_ "knative.dev/pkg/system/testing"
 	"knative.dev/pkg/tracing/propagation/tracecontextb3"
 
+	"knative.dev/pkg/tracing"
+	tracingconfig "knative.dev/pkg/tracing/config"
+
 	"knative.dev/eventing/pkg/kncloudevents"
-	"knative.dev/eventing/pkg/tracing"
-	"knative.dev/eventing/pkg/utils"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -86,7 +89,7 @@ func TestMessageReceiver_ServeHTTP(t *testing.T) {
 				"x-requEst-id":              {"1234"},
 				"knatIve-will-pass-through": {"true", "always"},
 			},
-			host: "test-name.test-namespace.svc." + utils.GetClusterDomainName(),
+			host: "test-name.test-namespace.svc." + network.GetClusterDomainName(),
 			receiverFunc: func(ctx context.Context, r ChannelReference, m binding.Message, transformers []binding.Transformer, additionalHeaders nethttp.Header) error {
 				if r.Namespace != "test-namespace" || r.Name != "test-name" {
 					return fmt.Errorf("test receiver func -- bad reference: %v", r)
@@ -116,21 +119,12 @@ func TestMessageReceiver_ServeHTTP(t *testing.T) {
 					return fmt.Errorf("test receiver func -- bad headers (-want, +got): %s", diff)
 				}
 
-				// Check history
-				if h, ok := e.Extensions()[EventHistory]; !ok {
-					return fmt.Errorf("test receiver func -- history not added")
-				} else {
-					expectedHistory := "test-name.test-namespace.svc." + utils.GetClusterDomainName()
-					if h != expectedHistory {
-						return fmt.Errorf("test receiver func -- bad history: %v", h)
-					}
-				}
-
 				return nil
 			},
 			expected: nethttp.StatusAccepted,
 		},
 	}
+	reporter := NewStatsReporter("testcontainer", "testpod")
 	for n, tc := range testCases {
 		t.Run(n, func(t *testing.T) {
 			// Default the common things.
@@ -141,11 +135,11 @@ func TestMessageReceiver_ServeHTTP(t *testing.T) {
 				tc.path = "/"
 			}
 			if tc.host == "" {
-				tc.host = "test-channel.test-namespace.svc." + utils.GetClusterDomainName()
+				tc.host = "test-channel.test-namespace.svc." + network.GetClusterDomainName()
 			}
 
 			f := tc.receiverFunc
-			r, err := NewMessageReceiver(f, zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())))
+			r, err := NewMessageReceiver(f, zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())), reporter)
 			if err != nil {
 				t.Fatalf("Error creating new event receiver. Error:%s", err)
 			}
@@ -205,11 +199,12 @@ func TestMessageReceiver_ServerStart_trace_propagation(t *testing.T) {
 
 	// Default the common things.
 	method := nethttp.MethodPost
-	host := "test-name.test-namespace.svc." + utils.GetClusterDomainName()
+	host := "test-name.test-namespace.svc." + network.GetClusterDomainName()
 
+	reporter := NewStatsReporter("testcontainer", "testpod")
 	logger, _ := zap.NewDevelopment()
 
-	r, err := NewMessageReceiver(receiverFunc, logger)
+	r, err := NewMessageReceiver(receiverFunc, logger, reporter)
 	if err != nil {
 		t.Fatalf("Error creating new event receiver. Error:%s", err)
 	}
@@ -217,7 +212,12 @@ func TestMessageReceiver_ServerStart_trace_propagation(t *testing.T) {
 	server := httptest.NewServer(kncloudevents.CreateHandler(r))
 	defer server.Close()
 
-	require.NoError(t, tracing.SetupStaticPublishing(logger.Sugar(), "localhost", tracing.AlwaysSample))
+	require.NoError(t, tracing.SetupStaticPublishing(logger.Sugar(), "localhost", &tracingconfig.Config{
+		Backend:        tracingconfig.Zipkin,
+		Debug:          true,
+		SampleRate:     1.0,
+		ZipkinEndpoint: "http://zipkin.zipkin.svc.cluster.local:9411/api/v2/spans",
+	}))
 
 	p, err := cloudevents.NewHTTP(
 		http.WithTarget(server.URL),
@@ -241,12 +241,13 @@ func TestMessageReceiver_ServerStart_trace_propagation(t *testing.T) {
 }
 
 func TestMessageReceiver_WrongRequest(t *testing.T) {
-	host := "http://test-channel.test-namespace.svc." + utils.GetClusterDomainName() + "/"
+	reporter := NewStatsReporter("testcontainer", "testpod")
+	host := "http://test-channel.test-namespace.svc." + network.GetClusterDomainName() + "/"
 
 	f := func(_ context.Context, _ ChannelReference, _ binding.Message, _ []binding.Transformer, _ nethttp.Header) error {
 		return errors.New("test induced receiver function error")
 	}
-	r, err := NewMessageReceiver(f, zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())))
+	r, err := NewMessageReceiver(f, zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())), reporter)
 	if err != nil {
 		t.Fatalf("Error creating new event receiver. Error:%s", err)
 	}
@@ -258,12 +259,13 @@ func TestMessageReceiver_WrongRequest(t *testing.T) {
 
 	r.ServeHTTP(&res, req)
 	if res.Code != 400 {
-		t.Fatalf("Unexpected status code. Expected 400. Actual %v", res.Code)
+		t.Fatal("Unexpected status code. Expected 400. Actual", res.Code)
 	}
 }
 
 func TestMessageReceiver_UnknownHost(t *testing.T) {
-	host := "http://test-channel.test-namespace.svc." + utils.GetClusterDomainName() + "/"
+	host := "http://test-channel.test-namespace.svc." + network.GetClusterDomainName() + "/"
+	reporter := NewStatsReporter("testcontainer", "testpod")
 
 	f := func(_ context.Context, _ ChannelReference, _ binding.Message, _ []binding.Transformer, _ nethttp.Header) error {
 		return errors.New("test induced receiver function error")
@@ -271,6 +273,7 @@ func TestMessageReceiver_UnknownHost(t *testing.T) {
 	r, err := NewMessageReceiver(
 		f,
 		zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
+		reporter,
 		ResolveMessageChannelFromHostHeader(func(s string) (reference ChannelReference, err error) {
 			return ChannelReference{}, UnknownHostError(s)
 		}))
@@ -296,6 +299,6 @@ func TestMessageReceiver_UnknownHost(t *testing.T) {
 
 	r.ServeHTTP(&res, req)
 	if res.Code != 404 {
-		t.Fatalf("Unexpected status code. Expected 404. Actual %v", res.Code)
+		t.Fatal("Unexpected status code. Expected 404. Actual", res.Code)
 	}
 }

@@ -109,7 +109,7 @@ func TestSequenceGetCondition(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got := test.ss.GetCondition(test.condQuery)
 			if diff := cmp.Diff(test.want, got); diff != "" {
-				t.Errorf("unexpected condition (-want, +got) = %v", diff)
+				t.Error("unexpected condition (-want, +got) =", diff)
 			}
 		})
 	}
@@ -200,7 +200,7 @@ func TestSequenceInitializeConditions(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			test.ts.InitializeConditions()
 			if diff := cmp.Diff(test.want, test.ts, ignoreAllButTypeAndStatus); diff != "" {
-				t.Errorf("unexpected conditions (-want, +got) = %v", diff)
+				t.Error("unexpected conditions (-want, +got) =", diff)
 			}
 		})
 	}
@@ -328,7 +328,7 @@ func TestSequenceReady(t *testing.T) {
 		subs:     []*messagingv1beta1.Subscription{getSubscription("sub0", true)},
 		want:     true,
 	}, {
-		name:     "one channelable ready, one not, two subsriptions ready",
+		name:     "one channelable ready, one not, two subscriptions ready",
 		channels: []*eventingduckv1beta1.Channelable{getChannelable(true), getChannelable(false)},
 		subs:     []*messagingv1beta1.Subscription{getSubscription("sub0", true), getSubscription("sub1", true)},
 		want:     false,
@@ -393,7 +393,7 @@ func TestSequencePropagateSetAddress(t *testing.T) {
 			ps.setAddress(test.address)
 			got := ps.Address
 			if diff := cmp.Diff(test.want, got, ignoreAllButTypeAndStatus); diff != "" {
-				t.Errorf("unexpected address (-want, +got) = %v", diff)
+				t.Error("unexpected address (-want, +got) =", diff)
 			}
 			gotStatus := ps.GetCondition(SequenceConditionAddressable).Status
 			if test.wantStatus != gotStatus {

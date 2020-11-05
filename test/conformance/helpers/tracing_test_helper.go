@@ -63,14 +63,17 @@ func tracingTest(
 	// TestMain.
 	tracinghelper.Setup(t, client)
 
+	// Start the event info store. Note this is done _before_ we setup the infrastructure, which
+	// sends the event.
+	targetTracker, err := recordevents.NewEventInfoStore(client, recordEventsPodName, client.Namespace)
+	if err != nil {
+		t.Fatal("Pod tracker failed:", err)
+	}
+
 	// Setup the test infrastructure
 	expectedTestSpan, eventMatcher := setupInfrastructure(ctx, t, &channel, client, recordEventsPodName, true)
 
-	// Start the event info store and assert the event was received correctly
-	targetTracker, err := recordevents.NewEventInfoStore(client, recordEventsPodName)
-	if err != nil {
-		t.Fatalf("Pod tracker failed: %v", err)
-	}
+	// Assert that the event was seen.
 	matches := targetTracker.AssertAtLeast(1, recordevents.MatchEvent(eventMatcher))
 
 	// Match the trace
@@ -107,6 +110,6 @@ func getTraceIDHeader(t *testing.T, evInfos []recordevents.EventInfo) string {
 			}
 		}
 	}
-	t.Fatalf("FAIL: No traceid in %d messages: (%s)", len(evInfos), evInfos)
+	t.Fatalf("FAIL: No traceid in %d messages: (%v)", len(evInfos), evInfos)
 	return ""
 }

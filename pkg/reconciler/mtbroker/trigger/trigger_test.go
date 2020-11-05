@@ -40,17 +40,17 @@ import (
 	"knative.dev/eventing/pkg/client/injection/reconciler/eventing/v1/trigger"
 	"knative.dev/eventing/pkg/duck"
 	"knative.dev/eventing/pkg/reconciler/mtbroker/resources"
-	"knative.dev/eventing/pkg/utils"
 	"knative.dev/pkg/apis"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
 	v1addr "knative.dev/pkg/client/injection/ducks/duck/v1/addressable"
-	"knative.dev/pkg/client/injection/ducks/duck/v1/conditions"
+	"knative.dev/pkg/client/injection/ducks/duck/v1/source"
 	v1a1addr "knative.dev/pkg/client/injection/ducks/duck/v1alpha1/addressable"
 	v1b1addr "knative.dev/pkg/client/injection/ducks/duck/v1beta1/addressable"
 	"knative.dev/pkg/configmap"
 	"knative.dev/pkg/controller"
 	fakedynamicclient "knative.dev/pkg/injection/clients/dynamicclient/fake"
 	logtesting "knative.dev/pkg/logging/testing"
+	"knative.dev/pkg/network"
 	"knative.dev/pkg/resolver"
 
 	_ "knative.dev/eventing/pkg/client/injection/informers/eventing/v1/trigger/fake"
@@ -84,7 +84,7 @@ const (
 	testSchedule                = "*/2 * * * *"
 	testData                    = "data"
 	sinkName                    = "testsink"
-	dependencyAnnotation        = "{\"kind\":\"PingSource\",\"name\":\"test-ping-source\",\"apiVersion\":\"sources.knative.dev/v1beta1\"}"
+	dependencyAnnotation        = `{"kind":"PingSource","name":"test-ping-source","apiVersion":"sources.knative.dev/v1beta1"}`
 	subscriberURIReference      = "foo"
 	subscriberResolvedTargetURI = "http://example.com/subscriber/foo"
 
@@ -101,7 +101,7 @@ kind: "InMemoryChannel"
 var (
 	testKey = fmt.Sprintf("%s/%s", testNS, triggerName)
 
-	triggerChannelHostname = fmt.Sprintf("foo.bar.svc.%s", utils.GetClusterDomainName())
+	triggerChannelHostname = network.GetServiceHostname("foo", "bar")
 	triggerChannelURL      = fmt.Sprintf("http://%s", triggerChannelHostname)
 
 	filterServiceName  = "broker-filter"
@@ -127,12 +127,12 @@ var (
 			APIVersion: "eventing.knative.dev/v1",
 		},
 	}
-	sinkDNS = "sink.mynamespace.svc." + utils.GetClusterDomainName()
+	sinkDNS = network.GetServiceHostname("sink", "mynamespace")
 	sinkURI = "http://" + sinkDNS
 
 	brokerAddress = &apis.URL{
 		Scheme: "http",
-		Host:   fmt.Sprintf("%s.%s.svc.%s", ingressServiceName, systemNS, utils.GetClusterDomainName()),
+		Host:   network.GetServiceHostname(ingressServiceName, systemNS),
 		Path:   fmt.Sprintf("/%s/%s", testNS, brokerName),
 	}
 )
@@ -523,7 +523,7 @@ func TestReconcile(t *testing.T) {
 					WithDependencyAnnotation(dependencyAnnotation),
 				)}...),
 			WantEvents: []string{
-				Eventf(corev1.EventTypeWarning, "InternalError", "propagating dependency readiness: getting the dependency: pingsources.sources.knative.dev \"test-ping-source\" not found"),
+				Eventf(corev1.EventTypeWarning, "InternalError", `propagating dependency readiness: getting the dependency: pingsources.sources.knative.dev "test-ping-source" not found`),
 			},
 			WantStatusUpdates: []clientgotesting.UpdateActionImpl{{
 				Object: NewTrigger(triggerName, testNS, brokerName,
@@ -536,7 +536,7 @@ func TestReconcile(t *testing.T) {
 					WithTriggerSubscribed(),
 					WithTriggerStatusSubscriberURI(subscriberURI),
 					WithTriggerSubscriberResolvedSucceeded(),
-					WithTriggerDependencyFailed("DependencyDoesNotExist", "Dependency does not exist: pingsources.sources.knative.dev \"test-ping-source\" not found"),
+					WithTriggerDependencyFailed("DependencyDoesNotExist", `Dependency does not exist: pingsources.sources.knative.dev "test-ping-source" not found`),
 				),
 			}},
 			WantErr: true,
@@ -658,17 +658,17 @@ func TestReconcile(t *testing.T) {
 		ctx = v1a1addr.WithDuck(ctx)
 		ctx = v1b1addr.WithDuck(ctx)
 		ctx = v1addr.WithDuck(ctx)
-		ctx = conditions.WithDuck(ctx)
+		ctx = source.WithDuck(ctx)
 		r := &Reconciler{
 			eventingClientSet:  fakeeventingclient.Get(ctx),
 			dynamicClientSet:   fakedynamicclient.Get(ctx),
 			subscriptionLister: listers.GetSubscriptionLister(),
 			triggerLister:      listers.GetTriggerLister(),
 
-			brokerLister:     listers.GetBrokerLister(),
-			configmapLister:  listers.GetConfigMapLister(),
-			kresourceTracker: duck.NewListableTracker(ctx, conditions.Get, func(types.NamespacedName) {}, 0),
-			uriResolver:      resolver.NewURIResolver(ctx, func(types.NamespacedName) {}),
+			brokerLister:    listers.GetBrokerLister(),
+			configmapLister: listers.GetConfigMapLister(),
+			sourceTracker:   duck.NewListableTracker(ctx, source.Get, func(types.NamespacedName) {}, 0),
+			uriResolver:     resolver.NewURIResolver(ctx, func(types.NamespacedName) {}),
 		}
 		return trigger.NewReconciler(ctx, logger,
 			fakeeventingclient.Get(ctx), listers.GetTriggerLister(),
@@ -772,7 +772,7 @@ func createTriggerChannelRef() *corev1.ObjectReference {
 func makeServiceURI() *apis.URL {
 	return &apis.URL{
 		Scheme: "http",
-		Host:   fmt.Sprintf("broker-filter.%s.svc.%s", systemNS, utils.GetClusterDomainName()),
+		Host:   network.GetServiceHostname("broker-filter", systemNS),
 		Path:   fmt.Sprintf("/triggers/%s/%s/%s", testNS, triggerName, triggerUID),
 	}
 }
