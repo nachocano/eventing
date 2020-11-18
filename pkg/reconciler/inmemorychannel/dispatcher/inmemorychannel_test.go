@@ -27,6 +27,7 @@ import (
 	"knative.dev/eventing/pkg/kncloudevents"
 
 	"github.com/google/go-cmp/cmp"
+	"knative.dev/pkg/ptr"
 	"knative.dev/pkg/reconciler"
 
 	corev1 "k8s.io/api/core/v1"
@@ -64,7 +65,6 @@ const (
 )
 
 var (
-	three       = int32(3)
 	linear      = eventingduckv1.BackoffPolicyLinear
 	exponential = eventingduckv1.BackoffPolicyExponential
 
@@ -87,7 +87,7 @@ var (
 		SubscriberURI: apis.HTTP("call1"),
 		ReplyURI:      apis.HTTP("sink2"),
 		Delivery: &eventingduckv1.DeliverySpec{
-			Retry:         &three,
+			Retry:         ptr.Int32(3),
 			BackoffPolicy: &linear,
 		},
 	}
@@ -116,7 +116,7 @@ func init() {
 func TestAllCases(t *testing.T) {
 	backoffPolicy := eventingduckv1.BackoffPolicyLinear
 
-	imcKey := testNS + "/" + imcName
+	const imcKey = testNS + "/" + imcName
 	table := TableTest{
 		{
 			Name: "bad workqueue key",
@@ -132,13 +132,6 @@ func TestAllCases(t *testing.T) {
 			Objects: []runtime.Object{
 				NewInMemoryChannel(imcName, testNS, WithInitInMemoryChannelConditions),
 			},
-			WantPatches: []clientgotesting.PatchActionImpl{
-				patchFinalizers(testNS, imcName),
-			},
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "FinalizerUpdate", "Updated %q finalizers", imcName),
-			},
-			WantErr: false,
 		}, {
 			Name: "updated configuration, one channel",
 			Key:  imcKey,
@@ -151,13 +144,6 @@ func TestAllCases(t *testing.T) {
 					WithInMemoryChannelChannelServiceReady(),
 					WithInMemoryChannelAddress(channelServiceAddress)),
 			},
-			WantPatches: []clientgotesting.PatchActionImpl{
-				patchFinalizers(testNS, imcName),
-			},
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "FinalizerUpdate", "Updated %q finalizers", imcName),
-			},
-			WantErr: false,
 		}, {
 			Name: "with subscribers",
 			Key:  imcKey,
@@ -172,14 +158,8 @@ func TestAllCases(t *testing.T) {
 					WithInMemoryChannelAddress(channelServiceAddress)),
 			},
 			WantPatches: []clientgotesting.PatchActionImpl{
-				patchFinalizers(testNS, imcName),
-				patchSubscriberBytes(testNS, imcName, twoSubscriberPatch),
+				makePatch(testNS, imcName, twoSubscriberPatch),
 			},
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "FinalizerUpdate", "Updated %q finalizers", imcName),
-			},
-
-			WantErr: false,
 		}, {
 			Name: "with subscribers, patch fails",
 			Key:  imcKey,
@@ -197,11 +177,9 @@ func TestAllCases(t *testing.T) {
 				InduceFailure("patch", "inmemorychannels/status"),
 			},
 			WantPatches: []clientgotesting.PatchActionImpl{
-				patchFinalizers(testNS, imcName),
-				patchSubscriberBytes(testNS, imcName, twoSubscriberPatch),
+				makePatch(testNS, imcName, twoSubscriberPatch),
 			},
 			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "FinalizerUpdate", "Updated %q finalizers", imcName),
 				Eventf(corev1.EventTypeWarning, "InternalError", "Failed patching: inducing failure for patch inmemorychannels"),
 			},
 			WantErr: true,
@@ -220,14 +198,6 @@ func TestAllCases(t *testing.T) {
 					WithInMemoryChannelReadySubscriberAndGeneration(string(subscriber2UID), subscriber2Generation),
 					WithInMemoryChannelAddress(channelServiceAddress)),
 			},
-			WantPatches: []clientgotesting.PatchActionImpl{
-				patchFinalizers(testNS, imcName),
-			},
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "FinalizerUpdate", "Updated %q finalizers", imcName),
-			},
-
-			WantErr: false,
 		}, {
 			Name: "with subscribers, one removed one added to status",
 			Key:  imcKey,
@@ -244,14 +214,8 @@ func TestAllCases(t *testing.T) {
 					WithInMemoryChannelAddress(channelServiceAddress)),
 			},
 			WantPatches: []clientgotesting.PatchActionImpl{
-				patchFinalizers(testNS, imcName),
-				patchSubscriberBytes(testNS, imcName, oneSubscriberRemovedOneAddedPatch),
+				makePatch(testNS, imcName, oneSubscriberRemovedOneAddedPatch),
 			},
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "FinalizerUpdate", "Updated %q finalizers", imcName),
-			},
-
-			WantErr: false,
 		}, {
 			Name: "subscriber with delivery spec",
 			Key:  imcKey,
@@ -281,13 +245,8 @@ func TestAllCases(t *testing.T) {
 					WithInMemoryChannelAddress(channelServiceAddress)),
 			},
 			WantPatches: []clientgotesting.PatchActionImpl{
-				patchFinalizers(testNS, imcName),
-				patchSubscriberBytes(testNS, imcName, oneSubscriberPatch),
+				makePatch(testNS, imcName, oneSubscriberPatch),
 			},
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "FinalizerUpdate", "Updated %q finalizers", imcName),
-			},
-			WantErr: false,
 		}, {
 			Name: "subscriber with invalid delivery spec",
 			Key:  imcKey,
@@ -316,11 +275,7 @@ func TestAllCases(t *testing.T) {
 					}),
 					WithInMemoryChannelAddress(channelServiceAddress)),
 			},
-			WantPatches: []clientgotesting.PatchActionImpl{
-				patchFinalizers(testNS, imcName),
-			},
 			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "FinalizerUpdate", "Updated %q finalizers", imcName),
 				Eventf(corev1.EventTypeWarning, "InternalError", "failed to parse Spec.BackoffDelay: expected 'P' period mark at the start: garbage"),
 			},
 			WantErr: true,
@@ -354,20 +309,13 @@ func TestAllCases(t *testing.T) {
 					WithInMemoryChannelAddress(channelServiceAddress),
 					WithInMemoryChannelDeleted),
 			},
-			WantPatches: []clientgotesting.PatchActionImpl{
-				patchRemoveFinalizers(testNS, imcName),
-			},
-			WantEvents: []string{
-				Eventf(corev1.EventTypeNormal, "FinalizerUpdate", "Updated %q finalizers", imcName),
-			},
-			WantErr: false,
 		},
 	}
 
 	logger := logtesting.TestLogger(t)
 	table.Test(t, MakeFactory(func(ctx context.Context, listers *Listers, cmw configmap.Watcher) controller.Reconciler {
 		r := &Reconciler{
-			multiChannelMessageHandler: NewFakeMultiChannelHandler(),
+			multiChannelMessageHandler: newFakeMultiChannelHandler(),
 			eventDispatcherConfigStore: channel.NewEventDispatcherConfigStore(logger),
 			messagingClientSet:         fakeeventingclient.Get(ctx).MessagingV1(),
 		}
@@ -504,7 +452,7 @@ func TestReconciler_ReconcileKind(t *testing.T) {
 		}
 		for _, fanoutHandler := range []fanout.MessageHandler{nil, fh} {
 			t.Run("handler-"+n, func(t *testing.T) {
-				handler := NewFakeMultiChannelHandler()
+				handler := newFakeMultiChannelHandler()
 				if fanoutHandler != nil {
 					fanoutHandler.SetSubscriptions(context.TODO(), tc.subs)
 					handler.SetChannelHandler(channelServiceAddress, fanoutHandler)
@@ -529,10 +477,41 @@ func TestReconciler_ReconcileKind(t *testing.T) {
 	}
 }
 
-func TestReconciler_FinalizeKind(t *testing.T) {
+func TestReconciler_InvalidInputs(t *testing.T) {
 	testCases := map[string]struct {
-		imc        *v1.InMemoryChannel
-		wantResult reconciler.Event
+		imc interface{}
+	}{
+		"nil": {},
+		"With no address": {
+			imc: NewInMemoryChannel(imcName, testNS, WithInMemoryChannelDeleted),
+		},
+		"With invalid type": {
+			imc: &subscriber1,
+		},
+	}
+	for n, tc := range testCases {
+		fh, err := fanout.NewFanoutMessageHandler(nil, channel.NewMessageDispatcher(nil), fanout.Config{}, nil)
+		if err != nil {
+			t.Error(err)
+		}
+		for _, fanoutHandler := range []fanout.MessageHandler{nil, fh} {
+			t.Run("handler-"+n, func(t *testing.T) {
+				handler := newFakeMultiChannelHandler()
+				if fanoutHandler != nil {
+					handler.SetChannelHandler(channelServiceAddress, fanoutHandler)
+				}
+				r := &Reconciler{
+					multiChannelMessageHandler: handler,
+				}
+				r.deleteFunc(tc.imc)
+			})
+		}
+	}
+}
+
+func TestReconciler_Deletion(t *testing.T) {
+	testCases := map[string]struct {
+		imc *v1.InMemoryChannel
 	}{
 		"With address": {
 			imc: NewInMemoryChannel(imcName, testNS,
@@ -547,17 +526,14 @@ func TestReconciler_FinalizeKind(t *testing.T) {
 		}
 		for _, fanoutHandler := range []fanout.MessageHandler{nil, fh} {
 			t.Run("handler-"+n, func(t *testing.T) {
-				handler := NewFakeMultiChannelHandler()
+				handler := newFakeMultiChannelHandler()
 				if fanoutHandler != nil {
 					handler.SetChannelHandler(channelServiceAddress, fanoutHandler)
 				}
 				r := &Reconciler{
 					multiChannelMessageHandler: handler,
 				}
-				e := r.FinalizeKind(context.TODO(), tc.imc)
-				if e != tc.wantResult {
-					t.Errorf("Results differ, want %v have %v", tc.wantResult, e)
-				}
+				r.deleteFunc(tc.imc)
 				if handler.GetChannelHandler(channelServiceAddress) != nil {
 					t.Error("Got handler")
 				}
@@ -566,42 +542,25 @@ func TestReconciler_FinalizeKind(t *testing.T) {
 	}
 }
 
-func patchSubscriberBytes(namespace, name, patch string) clientgotesting.PatchActionImpl {
-	action := clientgotesting.PatchActionImpl{}
-	action.Name = name
-	action.Namespace = namespace
-	action.Patch = []byte(patch)
-	return action
-}
-
-func patchFinalizers(namespace, name string) clientgotesting.PatchActionImpl {
-	action := clientgotesting.PatchActionImpl{}
-	action.Name = name
-	action.Namespace = namespace
-	patch := `{"metadata":{"finalizers":["` + finalizerName + `"],"resourceVersion":""}}`
-	action.Patch = []byte(patch)
-	return action
-}
-
-func patchRemoveFinalizers(namespace, name string) clientgotesting.PatchActionImpl {
-	action := clientgotesting.PatchActionImpl{}
-	action.Name = name
-	action.Namespace = namespace
-	patch := `{"metadata":{"finalizers":[],"resourceVersion":""}}`
-	action.Patch = []byte(patch)
-	return action
+func makePatch(namespace, name, patch string) clientgotesting.PatchActionImpl {
+	return clientgotesting.PatchActionImpl{
+		ActionImpl: clientgotesting.ActionImpl{
+			Namespace: namespace,
+		},
+		Name:  name,
+		Patch: []byte(patch),
+	}
 }
 
 type fakeMultiChannelHandler struct {
 	handlers map[string]fanout.MessageHandler
 }
 
-func NewFakeMultiChannelHandler() *fakeMultiChannelHandler {
+func newFakeMultiChannelHandler() *fakeMultiChannelHandler {
 	return &fakeMultiChannelHandler{handlers: make(map[string]fanout.MessageHandler, 1)}
 }
-func (f *fakeMultiChannelHandler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 
-}
+func (f *fakeMultiChannelHandler) ServeHTTP(response http.ResponseWriter, request *http.Request) {}
 
 func (f *fakeMultiChannelHandler) SetChannelHandler(host string, handler fanout.MessageHandler) {
 	f.handlers[host] = handler

@@ -24,7 +24,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	sourcesv1beta1 "knative.dev/eventing/pkg/apis/sources/v1beta1"
+	"knative.dev/eventing/pkg/apis/sources/v1beta2"
 
 	"github.com/robfig/cron/v3"
 
@@ -65,12 +65,12 @@ func TestUpdateRemoveAdapter(t *testing.T) {
 	ctx, _ := rectesting.SetupFakeContext(t)
 	adapter := mtpingAdapter{
 		logger:    logging.FromContext(ctx),
-		runner:    &dummyRunner{},
+		runner:    &testRunner{},
 		entryidMu: sync.RWMutex{},
 		entryids:  make(map[string]cron.EntryID),
 	}
 
-	adapter.Update(ctx, &sourcesv1beta1.PingSource{
+	adapter.Update(ctx, &v1beta2.PingSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-name",
 			Namespace: "test-ns",
@@ -81,7 +81,7 @@ func TestUpdateRemoveAdapter(t *testing.T) {
 		t.Error(`Expected cron entries to contain "test-ns/test-name"`)
 	}
 
-	adapter.Remove(ctx, &sourcesv1beta1.PingSource{
+	adapter.Remove(ctx, &v1beta2.PingSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-name",
 			Namespace: "test-ns",
@@ -92,11 +92,11 @@ func TestUpdateRemoveAdapter(t *testing.T) {
 	}
 }
 
-type dummyRunner struct {
+type testRunner struct {
 	CronJobRunner
 }
 
-func (*dummyRunner) AddSchedule(*sourcesv1beta1.PingSource) cron.EntryID {
+func (*testRunner) AddSchedule(*v1beta2.PingSource) cron.EntryID {
 	return cron.EntryID(1)
 }
-func (*dummyRunner) RemoveSchedule(cron.EntryID) {}
+func (*testRunner) RemoveSchedule(cron.EntryID) {}
